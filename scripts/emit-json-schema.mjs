@@ -1,8 +1,8 @@
 // Build-time helper: writes the generated Diagram JSON Schema to
-// `dist/schema/diagram.schema.json` so it can be referenced via the
-// `inkin/diagram.schema.json` subpath export.
+// `dist/diagram.schema.json` so it can be referenced via the
+// `@inkin/schema/diagram.schema.json` subpath export.
 //
-// Runs after `tsdown` has produced `dist/schema/index.js`. Imports the
+// Runs after `tsdown` has produced `dist/index.js`. Imports the
 // pre-computed `diagramJsonSchema` from there (no re-running zod's
 // `toJSONSchema` at build time — single source of truth).
 
@@ -11,8 +11,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const distEntry = join(here, '..', 'dist', 'schema', 'index.js')
-const outPath = join(here, '..', 'dist', 'schema', 'diagram.schema.json')
+const distEntry = join(here, '..', 'dist', 'index.js')
+const outPath = join(here, '..', 'dist', 'diagram.schema.json')
 
 const mod = await import(pathToFileURL(distEntry).href)
 const schema = mod.diagramJsonSchema

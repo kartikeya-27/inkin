@@ -1,7 +1,7 @@
 {
-  "name": "inkin",
+  "name": "@inkin/schema",
   "version": "0.1.0",
-  "description": "Framework-agnostic typed schema for editable React diagrams. v0.1.0 ships the schema kernel only — zod types, parse(), dagre layout, JSON Schema export for AI tool-use. React surface lands in 0.2.0.",
+  "description": "Framework-agnostic typed schema kernel for the Inkin editable-React-diagrams project. zod types, parse(), dagre layout, JSON Schema export for AI tool-use. React surface ships separately as @inkin/react starting 0.2.0.",
   "license": "MIT",
   "author": "kartikeya27",
   "repository": {
@@ -19,13 +19,16 @@
     "LICENSE",
     "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
-    "./schema": {
-      "types": "./dist/schema/index.d.ts",
-      "import": "./dist/schema/index.js",
-      "require": "./dist/schema/index.cjs"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
-    "./diagram.schema.json": "./dist/schema/diagram.schema.json",
+    "./diagram.schema.json": "./dist/diagram.schema.json",
     "./package.json": "./package.json"
   },
   "scripts": {

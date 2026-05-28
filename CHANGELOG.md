@@ -14,7 +14,7 @@ _Nothing yet._
 
 ## [0.1.0] — 2026-05-28
 
-The schema kernel — framework-agnostic, AI-ready. No React surface yet (that lands in `0.2.0`).
+The schema kernel — framework-agnostic, AI-ready. Published as **`@inkin/schema`** on npm; the project name remains **inkin**. Future `@inkin/*` packages ship the React surface (`0.2.0`), the Mermaid bridge (`0.6.0`), and so on — each under the same scope, installable independently.
 
 ### Added
 
@@ -32,13 +32,14 @@ The schema kernel — framework-agnostic, AI-ready. No React surface yet (that l
 - `LayoutEngine` interface so consumers can swap in elkjs or hand-position layouts.
 - `diagramJsonSchema` — JSON Schema Draft 2020-12 export via zod 4's `z.toJSONSchema()`,
   ready to drop into OpenAI / Anthropic / Gemini function-calling.
-- Static `dist/schema/diagram.schema.json` file emitted at build time, exported via
-  the `inkin/diagram.schema.json` subpath for HTTP-fetchable / static-import consumers.
-- **`inkin/schema` is the only public entry in `0.1.0`** — the bare `inkin` root
-  entry is intentionally absent. This reflects the schema-only scope and ensures
-  zero breaking changes when `0.2.0` adds the bare `inkin` entry pointing at the
-  React `<DiagramStudio>` component. `inkin/schema` will remain the
-  framework-agnostic kernel forever.
+- Static `dist/diagram.schema.json` file emitted at build time, exported via the
+  `@inkin/schema/diagram.schema.json` subpath for HTTP-fetchable / static-import consumers.
+- **Published under the `@inkin` npm organization** as `@inkin/schema`. The original
+  unscoped name `inkin` was rejected by npm's anti-typosquatting check (too similar
+  to existing packages `ink` and `ini`); the `@inkin` scope bypasses that check
+  cleanly and sets up the future package layout (`@inkin/react` for `0.2.0`,
+  `@inkin/mermaid` for `0.6.0`). Each future release adds a new package under the
+  same scope; `@inkin/schema` remains the shared dependency.
 
 ### Verified
 
@@ -49,11 +50,12 @@ The schema kernel — framework-agnostic, AI-ready. No React surface yet (that l
 ### Deferred
 
 - **`arethetypeswrong` (attw) type-export check** is intentionally not gated in CI
-  for `0.1.0`. attw requires either a `main` field or a `.` entry in `exports`;
-  this release intentionally has only the `./schema` subpath (no `.`) so consumers
-  can adopt without a breaking import path change at `0.2.0`. attw returns as a CI
-  gate at `0.2.0` when the React surface adds the `.` entry. The `pnpm attw`
-  script is still available for ad-hoc runs.
+  for `0.1.0`. With the package restructure to `@inkin/schema` (where the package
+  itself is the schema, served at the `.` entry), attw should work — but this
+  pivot happened during the publish race, and we'd rather not add a gate that
+  hasn't been ground-truthed yet. attw returns as a CI gate at `0.2.0` after
+  ad-hoc validation. The `pnpm attw` script is still available for ad-hoc runs.
 
 [Unreleased]: https://github.com/kartikeya-27/inkin/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/kartikeya-27/inkin/releases/tag/v0.1.0
+[@inkin/schema on npm]: https://www.npmjs.com/package/@inkin/schema
