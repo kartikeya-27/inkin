@@ -12,7 +12,7 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
-## [0.1.0] — TBD
+## [0.1.0] — 2026-05-28
 
 The schema kernel — framework-agnostic, AI-ready. No React surface yet (that lands in `0.2.0`).
 
