@@ -29,13 +29,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Verify before publish (lint + typecheck + tests + build + size + attw)
+      - name: Verify before publish (lint + typecheck + tests + build + size)
         run: pnpm verify
 
-      - name: Publish (npm publish --provenance --access public)
+      # Belt-and-braces: ensure npm CLI is >= 11.5.1 (minimum version supporting
+      # Trusted Publishing via OIDC). Node 24 ships with npm 11.x by default,
+      # so this is usually a no-op — kept as insurance against future runner drift.
+      - name: Ensure npm >= 11.5.1 (Trusted Publishing requirement)
+        run: npm install -g npm@latest
+
+      # Authentication is via OIDC (Trusted Publishing) — no NPM_TOKEN required.
+      # The `id-token: write` workflow permission above + the npm-side Trusted
+      # Publisher config for this repo + this workflow filename combine to prove
+      # identity. Provenance attestation auto-attaches.
+      - name: Publish (npm publish --provenance --access public via OIDC)
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Audit signatures (post-publish)
         run: npm audit signatures
