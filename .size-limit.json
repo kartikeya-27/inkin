@@ -1,13 +1,13 @@
 [
   {
-    "name": "@inkin/schema (ESM, full surface — parse + layout + diagramJsonSchema)",
-    "path": "dist/index.js",
+    "name": "@inkin/core/schema (ESM, full surface — parse + layout + diagramJsonSchema)",
+    "path": "dist/schema/index.js",
     "import": "{ parse, layout, diagramJsonSchema, Diagram }",
     "limit": "100 kB"
   },
   {
-    "name": "@inkin/schema (CJS, full surface)",
-    "path": "dist/index.cjs",
+    "name": "@inkin/core/schema (CJS, full surface)",
+    "path": "dist/schema/index.cjs",
     "import": "{ parse, layout, diagramJsonSchema, Diagram }",
     "limit": "100 kB"
   }

@@ -1,8 +1,8 @@
-# inkin — `@inkin/schema`
+# inkin
 
-A framework-agnostic typed schema for editable React diagrams, published as the `@inkin/schema` npm package.
+Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/schema@0.1.0` — the schema kernel. No React surface yet; the editable `<DiagramStudio>` component lands in `0.2.0` as a separate `@inkin/react` package. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.1.0` — the schema kernel only (exposed at the `./schema` subpath). The editable `<DiagramStudio>` React component lands in `0.2.0` at the same package's root entry — `@inkin/core` itself becomes importable. The schema subpath stays stable forever. See [the release roadmap](#release-roadmap) below.
 
 ## What this gives you (today, at 0.1.0)
 
@@ -17,14 +17,14 @@ A framework-agnostic typed schema for editable React diagrams, published as the 
 ## Install
 
 ```bash
-pnpm add @inkin/schema
-# or: npm install @inkin/schema / yarn add @inkin/schema
+pnpm add @inkin/core
+# or: npm install @inkin/core / yarn add @inkin/core
 ```
 
 ## Quick start
 
 ```ts
-import { parse, layout, type Diagram } from '@inkin/schema'
+import { parse, layout, type Diagram } from '@inkin/core/schema'
 
 const draft: Diagram = parse({
   schemaVersion: 1,
@@ -43,12 +43,14 @@ const positioned = layout(draft)
 // → every node now has a `position: { x, y }` from dagre
 ```
 
-This package is **`@inkin/schema`** — the framework-agnostic kernel. It contains no React, no DOM, no CSS, and can be used anywhere modern JS runs (Node, Bun, Deno, browser, edge runtimes). Future releases under the `@inkin` scope are separate packages: `@inkin/react` ships the editable `<DiagramStudio>` component in `0.2.0`, `@inkin/mermaid` ships the Mermaid bidirectional bridge in `0.6.0`. Each can be installed independently; `@inkin/schema` is always the shared foundation.
+In `0.1.0`, **`@inkin/core/schema` is the only active subpath** — the bare `import '@inkin/core'` form has no export yet. This is intentional: the package ships *only* the framework-agnostic kernel right now, and the subpath name reflects exactly what you're importing. The schema subpath has **zero React, zero DOM, zero CSS** — safe in Node, edge runtimes, Bun, Deno, and the browser.
+
+From `0.2.0` onward, the bare `import '@inkin/core'` will be added, pointing at the React `<DiagramStudio>` component. The `@inkin/core/schema` subpath remains the framework-agnostic kernel forever. Zero breaking changes between `0.1.0` and `0.2.0`.
 
 ## AI tool-use
 
 ```ts
-import { diagramJsonSchema, parse } from '@inkin/schema'
+import { diagramJsonSchema, parse } from '@inkin/core/schema'
 
 // OpenAI / Anthropic / Gemini function-calling — drop in directly
 const tool = {
@@ -62,10 +64,10 @@ const diagram = parse(model.output)
 // → throws InkinValidationError with field-path issues; agent can self-correct in one round
 ```
 
-For tools that prefer fetching the schema as a static file rather than importing it, the same content ships as `@inkin/schema/diagram.schema.json`:
+For tools that prefer fetching the schema as a static file rather than importing it, the same content ships as `@inkin/core/diagram.schema.json`:
 
 ```ts
-import schema from '@inkin/schema/diagram.schema.json' with { type: 'json' }
+import schema from '@inkin/core/diagram.schema.json' with { type: 'json' }
 // or fetch it from your CDN of choice: unpkg, jsdelivr, etc.
 ```
 
@@ -96,7 +98,7 @@ The `issues[]` array is the agent-friendly version: each entry has `path` (e.g. 
 ## Custom layout
 
 ```ts
-import { layout, createDagreLayout, type LayoutEngine } from '@inkin/schema'
+import { layout, createDagreLayout, type LayoutEngine } from '@inkin/core/schema'
 
 const myLayout = createDagreLayout({ direction: 'TB', nodesep: 30, ranksep: 60 })
 const positioned = layout(draft, myLayout)
@@ -107,15 +109,15 @@ const noop: LayoutEngine = { layout: (d) => d }
 
 ## Release roadmap
 
-| Package | Version | Headline | Status |
+| Version | Headline | What gets added to `@inkin/core` | Status |
 |---|---|---|---|
-| `@inkin/schema` | **`0.1.0`** | Schema kernel (AI-ready) — you are here | ✅ shipped |
-| `@inkin/react` | `0.2.0` | Read-only `<DiagramStudio>` React renderer (nodes, edges, clusters, themes, pan/zoom, SVG export) | planned |
-| `@inkin/react` | `0.3.0` | Core editing (drag-to-move, connect, delete, inline label editing) | planned |
-| `@inkin/react` | `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | planned |
-| `@inkin/react` | `0.5.0` | Flow animation (CSS `offset-path` token rendering) | planned |
-| `@inkin/mermaid` | `0.6.0` | Mermaid bidirectional bridge | planned |
-| all packages | `1.0.0` | Stable — schema freeze, semver guarantee | planned |
+| **`0.1.0`** | Schema kernel (AI-ready) — you are here | `@inkin/core/schema` subpath | ✅ shipped |
+| `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface added) | planned |
+| `0.3.0` | Core editing (drag, connect, delete, inline label) | root entry grows; schema subpath stable | planned |
+| `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | planned |
+| `0.5.0` | Flow animation (CSS `offset-path` tokens) | root entry grows | planned |
+| `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |
+| `1.0.0` | Stable — schema and root API frozen, semver guarantee begins | polish only | planned |
 
 Post-stable: undo/redo, copy/paste, PNG export, flow-editor UI, `layout="elk"`, custom node/edge type registry.
 
