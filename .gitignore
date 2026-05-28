@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+coverage
+*.tsbuildinfo
+
+# npm pack tarballs (created by `npm pack` for local testing / attw runs)
+*.tgz
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Playwright (relevant from 0.3.0 onward)
+test-results
+playwright-report
+playwright/.cache
+
+# Local scratch
+.scratch
+.tmp
+
+# Personal planning / reference files (local-only, not part of the published library)
+do-analyze-the-image-transient-cocke.md
+prompt
+project-plan/
