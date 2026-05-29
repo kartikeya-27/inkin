@@ -43,14 +43,20 @@ jobs:
       - name: Typecheck library (tsc --noEmit)
         run: pnpm typecheck
 
-      - name: Typecheck examples (proves consumer-side types resolve)
-        run: pnpm --filter @inkin/examples exec tsc -b --noEmit
-
       - name: Unit tests (vitest)
         run: pnpm test
 
+      # Build must run before the examples typecheck: the examples app resolves
+      # `@inkin/core` through the workspace link, but `package.json#exports.types`
+      # points at `./dist/index.d.ts`, which only exists after a build. Locally
+      # this passes off a stale dist; in CI on a fresh checkout, the dist isn't
+      # there yet — so we build first and let the examples typecheck against the
+      # freshly-emitted types (which is also the more realistic consumer check).
       - name: Build (tsdown + emit JSON Schema)
         run: pnpm build
+
+      - name: Typecheck examples (proves consumer-side types resolve)
+        run: pnpm --filter @inkin/examples exec tsc -b --noEmit
 
       - name: Bundle size (size-limit)
         run: pnpm size
