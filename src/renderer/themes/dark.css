@@ -1,0 +1,57 @@
+/*
+ * Inkin dark theme.
+ *
+ * Activated by setting `data-inkin-theme="dark"` on the <DiagramStudio> wrapper
+ * (the <DiagramStudio> component does this automatically based on its `theme` prop).
+ * Each token is overridable by the consumer in their global CSS:
+ *
+ *   :root[data-inkin-theme="dark"] {
+ *     --inkin-accent-primary: #ff00ff;
+ *   }
+ *
+ * Token contract — see src/renderer/themes/tokens.ts for the typed list of all
+ * supported tokens. Adding a new token here requires adding it to tokens.ts.
+ */
+
+[data-inkin-theme="dark"] {
+  /* Canvas */
+  --inkin-bg-canvas: #0d1117;
+
+  /* Nodes */
+  --inkin-bg-node: #161b22;
+  --inkin-border-node: #30363d;
+  --inkin-border-node-strong: #6e7681;
+
+  /* Clusters */
+  --inkin-bg-cluster: #0d1117;
+  --inkin-border-cluster: #30363d;
+
+  /* Edges */
+  --inkin-edge-stroke: #6e7681;
+  --inkin-edge-label-bg: #161b22;
+  --inkin-edge-label-text: #c9d1d9;
+
+  /* Text */
+  --inkin-text-primary: #e6edf3;
+  --inkin-text-secondary: #7d8590;
+  --inkin-text-cluster-label: #7d8590;
+
+  /* Accents */
+  --inkin-accent-primary: #58a6ff;
+  --inkin-accent-primary-soft: rgba(88, 166, 255, 0.2);
+
+  /* Shadow & depth */
+  --inkin-shadow-node: 0 1px 3px rgba(0, 0, 0, 0.5);
+
+  /* Typography */
+  --inkin-font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --inkin-font-mono:
+    ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* Sizing */
+  --inkin-node-radius: 6px;
+  --inkin-cluster-radius: 8px;
+  --inkin-border-width: 1px;
+  --inkin-border-width-strong: 2px;
+}

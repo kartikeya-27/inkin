@@ -1,0 +1,22 @@
+/*
+ * TerminalNode — double-stroke border for end states.
+ *
+ * The double-stroke effect is layered box-shadows:
+ *   1. Inner ring matching the canvas background (creates the gap between the
+ *      inner border and the outer border).
+ *   2. Outer ring using the stronger border color (the visible outer stroke).
+ *   3. Re-include BaseNode's depth shadow last so it composes correctly (later
+ *      shadows in a comma-separated list render on top — we want depth shadow
+ *      to be the outermost effect).
+ *
+ * Inner border is the `border:` property; the rings sit outside it.
+ */
+
+.root {
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  box-shadow:
+    0 0 0 var(--inkin-border-width-strong) var(--inkin-bg-canvas),
+    0 0 0 calc(var(--inkin-border-width-strong) + var(--inkin-border-width))
+    var(--inkin-border-node-strong),
+    var(--inkin-shadow-node);
+}

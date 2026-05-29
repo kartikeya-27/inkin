@@ -1,0 +1,61 @@
+/*
+ * DiagramStudio — the wrapper around the rendered diagram.
+ *
+ * Fills 100% of its parent by default (the consumer is responsible for sizing
+ * the parent — typical use is height: 600px or similar). A min-height fallback
+ * prevents 0-height collapse if the parent doesn't size at all, which would
+ * otherwise hide the diagram silently.
+ *
+ * The error UI is only rendered when the input fails validation. It uses
+ * theme-token colors so it looks consistent in dark and light themes.
+ */
+
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  background: var(--inkin-bg-canvas);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-sans);
+}
+
+.error {
+  padding: 16px 20px;
+  background: var(--inkin-bg-node);
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 600px;
+  margin: 16px;
+  box-shadow: var(--inkin-shadow-node);
+}
+
+.errorTitle {
+  font-family: var(--inkin-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--inkin-text-primary);
+}
+
+.errorList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--inkin-text-secondary);
+}
+
+.errorList li {
+  margin: 4px 0;
+}
+
+.errorPath {
+  font-family: var(--inkin-font-mono);
+  color: var(--inkin-accent-primary);
+  background: var(--inkin-accent-primary-soft);
+  padding: 0 4px;
+  border-radius: 2px;
+}

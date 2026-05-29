@@ -40,8 +40,11 @@ jobs:
       - name: Lint (biome)
         run: pnpm lint
 
-      - name: Typecheck (tsc --noEmit)
+      - name: Typecheck library (tsc --noEmit)
         run: pnpm typecheck
+
+      - name: Typecheck examples (proves consumer-side types resolve)
+        run: pnpm --filter @inkin/examples exec tsc -b --noEmit
 
       - name: Unit tests (vitest)
         run: pnpm test
@@ -52,10 +55,13 @@ jobs:
       - name: Bundle size (size-limit)
         run: pnpm size
 
-      # Type-export correctness (arethetypeswrong) is deferred until 0.2.0.
-      # attw requires either a `main` field or a `.` entry in exports; the 0.1.0
-      # package intentionally has neither (only `./schema`). When 0.2.0 adds the
-      # React surface at `.`, attw returns as a CI gate. Run ad-hoc with `pnpm attw`.
+      - name: Type-export correctness (arethetypeswrong)
+        # Skipped from the local `pnpm verify` because `@arethetypeswrong/cli`'s
+        # streaming-gunzip tarball extractor (via fflate) is broken on Windows
+        # under recent Node releases — see fflate#207 and the corresponding
+        # workaround in @arethetypeswrong/core/createPackage.js. CI runs on
+        # Linux where the bug doesn't surface, so the gate lives here.
+        run: pnpm attw
 
       - name: Publish dry-run (npm pack)
         run: npm pack --dry-run

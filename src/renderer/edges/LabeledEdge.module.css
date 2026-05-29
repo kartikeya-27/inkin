@@ -1,0 +1,33 @@
+/*
+ * LabeledEdge styles.
+ *
+ * Path color uses the theme's edge stroke; arrowheads inherit this color via
+ * SVG `currentColor` (set by xyflow's marker definitions to follow the edge's
+ * stroke). The label is positioned absolutely in DOM coordinates by
+ * <EdgeLabelRenderer> and lives in a separate layer above the SVG.
+ */
+
+.path {
+  stroke: var(--inkin-edge-stroke);
+  stroke-width: 1.5px;
+  fill: none;
+}
+
+.dashed {
+  stroke-dasharray: 5 3;
+}
+
+.label {
+  position: absolute;
+  padding: 2px 6px;
+  background: var(--inkin-edge-label-bg);
+  color: var(--inkin-edge-label-text);
+  font-family: var(--inkin-font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+  border-radius: 3px;
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  pointer-events: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}

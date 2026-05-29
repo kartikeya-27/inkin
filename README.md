@@ -2,15 +2,16 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.1.0` — the schema kernel only (exposed at the `./schema` subpath). The editable `<DiagramStudio>` React component lands in `0.2.0` at the same package's root entry — `@inkin/core` itself becomes importable. The schema subpath stays stable forever. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.2.0` — the **read-only `<DiagramStudio>` React renderer** plus the framework-agnostic schema kernel (still at `./schema`). Editing affordances (drag, connect, inline edit, inspector, palette) land in `0.3.0`. See [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.1.0)
+## What this gives you (today, at 0.2.0)
 
-- A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows)
+- A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
+- A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
-- An auto-layout function powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
+- Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
 - A **JSON Schema Draft 2020-12 export** ready to drop into OpenAI / Anthropic / Gemini tool-use APIs
-- Zero React, zero DOM, zero CSS — safe in Node, edge runtimes, Bun, Deno, and the browser
+- The schema subpath has zero React, zero DOM, zero CSS — safe in Node, edge runtimes, Bun, Deno, and the browser
 
 > **Why a typed JSON schema instead of Mermaid / PlantUML / D2 syntax?** Text-based diagram DSLs force AI agents to emit valid grammar — one misplaced bracket and the whole diagram fails silently. `inkin`'s zod-validated JSON shape returns **token-isolated field-path errors** (`diagram.nodes[3].id — Required`) that agents can self-correct in a single round, instead of regenerating from scratch. Same advantage applies to human authoring: an autocomplete IDE catches mistakes at the keystroke level, not after rendering.
 
@@ -21,7 +22,95 @@ pnpm add @inkin/core
 # or: npm install @inkin/core / yarn add @inkin/core
 ```
 
-## Quick start
+`react` and `react-dom` (>=18) are peer dependencies — your app already has them. Everything else (xyflow, zustand, dagre, zod, html-to-image) is pulled in transitively.
+
+## React quickstart
+
+Three lines of code, one CSS import, one component:
+
+```tsx
+import { DiagramStudio } from '@inkin/core'
+import '@inkin/core/styles.css'
+
+export function Demo() {
+  return (
+    <div style={{ height: 600 }}>
+      <DiagramStudio
+        value={{
+          schemaVersion: 1,
+          nodes: [
+            { id: 'a', label: 'Start' },
+            { id: 'b', label: 'Middle' },
+            { id: 'c', label: 'End', shape: 'terminal' },
+          ],
+          edges: [
+            { from: 'a', to: 'b', label: 'go' },
+            { from: 'b', to: 'c', label: 'finish' },
+          ],
+        }}
+      />
+    </div>
+  )
+}
+```
+
+That's a complete read-only diagram with pan, zoom, and viewport controls. The wrapper inherits its parent's size, so size the parent — typical use is `height: 600px` or a flex/grid child.
+
+### Props
+
+| Prop | Type | Default | Notes |
+|---|---|---|---|
+| `value` | `Diagram` | _required_ | The diagram to render. Validated on every reference change; failures render an inline error panel instead of a blank canvas. |
+| `theme` | `'dark' \| 'light'` | `'dark'` | Reflected as `data-inkin-theme` on the wrapper; all theme tokens are scoped to that attribute. |
+| `layout` | `'auto' \| 'manual'` | `'auto'` | `'auto'` runs dagre on any node without a `position`. `'manual'` trusts the diagram as-is. |
+| `minimap` | `boolean` | `false` | Show xyflow's minimap overlay. |
+| `controls` | `boolean` | `true` | Show xyflow's viewport controls (zoom in/out, fit-view). |
+| `className` | `string` | — | Appended to the wrapper element. |
+| `ref` | `Ref<DiagramStudioRef>` | — | Imperative handle exposing `toSvg(options?)`. |
+
+### SVG export
+
+```tsx
+import { useRef } from 'react'
+import { DiagramStudio, type DiagramStudioRef } from '@inkin/core'
+
+function ExportButton() {
+  const ref = useRef<DiagramStudioRef>(null)
+
+  return (
+    <>
+      <DiagramStudio ref={ref} value={diagram} />
+      <button onClick={async () => {
+        const svg = await ref.current?.toSvg()
+        // download / display / copy to clipboard
+      }}>
+        Download SVG
+      </button>
+    </>
+  )
+}
+```
+
+### Next.js App Router
+
+`<DiagramStudio>` is client-only (xyflow touches `window` / `document` at import time). The component file ships `'use client'` so the App Router treats it correctly out of the box. If you import it from a Server Component anyway, dynamic-import without SSR:
+
+```tsx
+import dynamic from 'next/dynamic'
+
+const DiagramStudio = dynamic(
+  () => import('@inkin/core').then((m) => m.DiagramStudio),
+  { ssr: false },
+)
+```
+
+### Read-only today
+
+`0.2.0` renders diagrams — it does not edit them. Pan and zoom work (xyflow defaults). Drag-to-move, drag-to-connect, inline label editing, inspector panel, and palette all land in `0.3.0` behind an `onChange` prop. The `value` prop, the component shape, and the schema stay additive across the 0.x line.
+
+## Schema-only quickstart (framework-agnostic)
+
+The schema kernel from `0.1.0` is still available at the same subpath, unchanged:
 
 ```ts
 import { parse, layout, type Diagram } from '@inkin/core/schema'
@@ -43,9 +132,7 @@ const positioned = layout(draft)
 // → every node now has a `position: { x, y }` from dagre
 ```
 
-In `0.1.0`, **`@inkin/core/schema` is the only active subpath** — the bare `import '@inkin/core'` form has no export yet. This is intentional: the package ships *only* the framework-agnostic kernel right now, and the subpath name reflects exactly what you're importing. The schema subpath has **zero React, zero DOM, zero CSS** — safe in Node, edge runtimes, Bun, Deno, and the browser.
-
-From `0.2.0` onward, the bare `import '@inkin/core'` will be added, pointing at the React `<DiagramStudio>` component. The `@inkin/core/schema` subpath remains the framework-agnostic kernel forever. Zero breaking changes between `0.1.0` and `0.2.0`.
+`@inkin/core` (the React surface) also re-exports the common schema essentials (`Diagram`, `parse`, `safeParse`, `InkinValidationError`, `ValidationIssue`) for convenience — you only need the subpath when you want the layout engine, JSON Schema, or individual zod schemas.
 
 ## AI tool-use
 
@@ -83,6 +170,8 @@ inkin: invalid Diagram
 
 The `issues[]` array is the agent-friendly version: each entry has `path` (e.g. `"diagram.nodes[3].id"`) and `message`. Use `safeParse()` if you'd rather not throw.
 
+When `<DiagramStudio>` receives an invalid `value`, it renders the same field-path errors inline (as a `role="alert"` panel) instead of a blank canvas — DX commitment from the plan: "Error-on-mistake, not silent-render."
+
 ## Schema shape
 
 | Field | Type | Notes |
@@ -107,13 +196,26 @@ const positioned = layout(draft, myLayout)
 const noop: LayoutEngine = { layout: (d) => d }
 ```
 
+## Theming
+
+`@inkin/core/styles.css` defines every visible color, border, radius, and font as a `--inkin-*` CSS custom property scoped to `[data-inkin-theme="dark"|"light"]`. Override any of them in your own CSS to rebrand without forking:
+
+```css
+[data-inkin-theme='dark'] {
+  --inkin-accent-primary: #ff00aa;
+  --inkin-bg-node: #1a0d22;
+}
+```
+
+The theme attribute lives on the `<DiagramStudio>` wrapper, so two instances on the same page can use different themes side by side.
+
 ## Release roadmap
 
 | Version | Headline | What gets added to `@inkin/core` | Status |
 |---|---|---|---|
-| **`0.1.0`** | Schema kernel (AI-ready) — you are here | `@inkin/core/schema` subpath | ✅ shipped |
-| `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface added) | planned |
-| `0.3.0` | Core editing (drag, connect, delete, inline label) | root entry grows; schema subpath stable | planned |
+| `0.1.0` | Schema kernel (AI-ready) | `@inkin/core/schema` subpath | ✅ shipped |
+| **`0.2.0`** | Read-only `<DiagramStudio>` React renderer — you are here | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
+| `0.3.0` | Core editing (drag, connect, delete, inline label) | `onChange` prop; root entry grows; schema subpath stable | planned |
 | `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | planned |
 | `0.5.0` | Flow animation (CSS `offset-path` tokens) | root entry grows | planned |
 | `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |

@@ -1,7 +1,7 @@
 {
   "name": "@inkin/core",
-  "version": "0.1.0",
-  "description": "Editable React diagrams from a typed schema. v0.1.0 ships the schema kernel only via the `@inkin/core/schema` subpath — zod types, parse(), dagre layout, JSON Schema export for AI tool-use. The React `<DiagramStudio>` component is added at the root entry in 0.2.0; the schema subpath remains stable forever.",
+  "version": "0.2.0",
+  "description": "Editable React diagrams from a typed schema. v0.2.0 adds the read-only <DiagramStudio> React component (xyflow-powered pan/zoom, custom nodes/edges/clusters, dark+light themes, SVG export). The framework-agnostic schema kernel remains available at the @inkin/core/schema subpath. Editing lands in 0.3.0.",
   "license": "MIT",
   "author": "kartikeya27",
   "repository": {
@@ -12,7 +12,9 @@
   "engines": {
     "node": "^22.18.0 || >=24.0.0"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "dist",
     "README.md",
@@ -23,11 +25,17 @@
     "access": "public"
   },
   "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
     "./schema": {
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js",
       "require": "./dist/schema/index.cjs"
     },
+    "./styles.css": "./dist/styles.css",
     "./diagram.schema.json": "./dist/schema/diagram.schema.json",
     "./package.json": "./package.json"
   },
@@ -42,18 +50,34 @@
     "size": "size-limit",
     "attw": "pnpm dlx @arethetypeswrong/cli --pack",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm size",
-    "prepublishOnly": "pnpm verify"
+    "prepublishOnly": "pnpm verify",
+    "examples": "pnpm --filter examples dev"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.0",
-    "zod": "^4.4.3"
+    "@xyflow/react": "^12.0.0",
+    "html-to-image": "^1.11.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@size-limit/preset-small-lib": "^11.1.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@tsdown/css": "^0.22.0",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.0",
+    "jsdom": "^25.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "size-limit": "^11.1.0",
     "tsdown": "^0.22.0",
     "typescript": "^5.5.0",
@@ -61,10 +85,12 @@
   },
   "keywords": [
     "diagram",
+    "react",
+    "react-component",
     "schema",
     "zod",
-    "react",
     "xyflow",
+    "react-flow",
     "mermaid",
     "graph",
     "editable",

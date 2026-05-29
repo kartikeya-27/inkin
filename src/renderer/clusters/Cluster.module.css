@@ -1,0 +1,32 @@
+/*
+ * Cluster — dashed-border container with top-left monospace label.
+ *
+ * The wrapper fills 100% of its xyflow-assigned width/height (which translate.ts
+ * computed from the bounding box of children + padding + label area).
+ *
+ * The label is positioned absolutely so it doesn't push child layout; the
+ * `padding-top` reservation lives in translate.ts (CLUSTER_LABEL_HEIGHT = 28px).
+ */
+
+.root {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--inkin-bg-cluster);
+  border: var(--inkin-border-width) dashed var(--inkin-border-cluster);
+  border-radius: var(--inkin-cluster-radius);
+  position: relative;
+}
+
+.label {
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  font-family: var(--inkin-font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.4px;
+  color: var(--inkin-text-cluster-label);
+  pointer-events: none;
+  z-index: 1;
+}

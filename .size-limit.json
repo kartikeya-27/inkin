@@ -10,5 +10,24 @@
     "path": "dist/schema/index.cjs",
     "import": "{ parse, layout, diagramJsonSchema, Diagram }",
     "limit": "100 kB"
+  },
+  {
+    "name": "@inkin/core (ESM, React surface — DiagramStudio + types)",
+    "path": "dist/index.js",
+    "import": "{ DiagramStudio, toSvg, parse }",
+    "ignore": ["react", "react-dom"],
+    "limit": "200 kB"
+  },
+  {
+    "name": "@inkin/core (CJS, React surface)",
+    "path": "dist/index.cjs",
+    "import": "{ DiagramStudio, toSvg, parse }",
+    "ignore": ["react", "react-dom"],
+    "limit": "200 kB"
+  },
+  {
+    "name": "@inkin/core/styles.css (consolidated stylesheet)",
+    "path": "dist/styles.css",
+    "limit": "30 kB"
   }
 ]

@@ -1,0 +1,25 @@
+/*
+ * `@inkin/core` consolidated stylesheet — pulled into `dist/styles.css` via
+ * a single side-effect import from `src/index.ts`. The JS->CSS bridge is what
+ * makes Rolldown 1.0 (which dropped CSS-as-entry support) emit one bundled
+ * file instead of leaving the imports as runtime fetches.
+ *
+ * Composition (order matters — later rules win):
+ *   1. xyflow's stylesheet — base canvas, viewport controls, minimap,
+ *      background dots, edge paths, handle styling. Required; without it the
+ *      React Flow canvas renders without layout.
+ *   2. Inkin theme tokens — every `--inkin-*` CSS custom property used by the
+ *      component CSS Modules, scoped to `[data-inkin-theme="dark|light"]`.
+ *
+ * Per-component CSS Modules (`BaseNode.module.css`, etc.) flow in separately
+ * through the JS dependency graph and end up appended to the same
+ * `dist/styles.css` by the bundler — no explicit `@import` here.
+ *
+ * Lightning CSS (via `@tsdown/css`) resolves `@import` specifiers against
+ * `node_modules`, so `@xyflow/react/dist/style.css` is inlined at build time
+ * even though `@xyflow/react` itself is externalized at the JS layer.
+ */
+
+@import "@xyflow/react/dist/style.css";
+@import "./themes/dark.css";
+@import "./themes/light.css";

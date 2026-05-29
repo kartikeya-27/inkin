@@ -1,0 +1,9 @@
+/*
+ * GraphRenderer is currently a thin wrapper around <ReactFlow> + its built-in
+ * subcomponents. xyflow ships its own CSS (loaded via src/styles.css) that
+ * styles the canvas, controls, minimap, and background grid.
+ *
+ * This module is reserved for any overrides we need on top of xyflow's CSS —
+ * empty for 0.2.0. Kept as a placeholder so the per-component CSS Modules
+ * pattern is consistent across the renderer folder.
+ */

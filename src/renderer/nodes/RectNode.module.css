@@ -1,0 +1,9 @@
+/*
+ * RectNode — default rectangular shape.
+ *
+ * Just the outer-wrapper border. All layout / typography lives in BaseNode.
+ */
+
+.root {
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+}
