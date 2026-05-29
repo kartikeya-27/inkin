@@ -1,4 +1,4 @@
-import type { Diagram } from '@inkin/core'
+import type { DiagramInput } from '@inkin/core'
 
 /**
  * A generic three-tier web architecture, clustered. Exercises:
@@ -10,7 +10,7 @@ import type { Diagram } from '@inkin/core'
  *
  * Flow animation is part of 0.5.0 and is intentionally not used here.
  */
-export const architecture: Diagram = {
+export const architecture: DiagramInput = {
   schemaVersion: 1,
   clusters: [
     { id: 'edge', label: 'edge' },

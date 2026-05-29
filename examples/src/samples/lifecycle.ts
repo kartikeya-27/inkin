@@ -1,4 +1,4 @@
-import type { Diagram } from '@inkin/core'
+import type { DiagramInput } from '@inkin/core'
 
 /**
  * A generic order-processing state machine. Exercises:
@@ -10,7 +10,7 @@ import type { Diagram } from '@inkin/core'
  * No clusters here; this is the "single graph" use case (state diagrams,
  * approval flows, simple pipelines).
  */
-export const lifecycle: Diagram = {
+export const lifecycle: DiagramInput = {
   schemaVersion: 1,
   nodes: [
     { id: 'created', label: 'Created', shape: 'terminal' },

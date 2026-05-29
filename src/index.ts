@@ -48,7 +48,7 @@ export type { ToSvgOptions } from './renderer/export'
 export { toSvg } from './renderer/export'
 
 export type { InkinThemeName } from './renderer/themes'
-export type { Diagram as DiagramType } from './schema/types'
+export type { Diagram as DiagramType, DiagramInput } from './schema/types'
 // Convenience re-exports from the schema kernel.
 export { Diagram } from './schema/types'
 export type { ValidationIssue } from './schema/validate'

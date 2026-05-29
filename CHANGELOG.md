@@ -66,10 +66,16 @@ subpath; consumers' `@inkin/core/schema` imports are byte-identical.
 - **SVG export** via `toSvg(element, options?)` (`html-to-image` under the
   hood). Also re-exported from the root entry as `toSvg` / `ToSvgOptions`.
 - **Convenience re-exports** from the root entry for the common React use
-  case: `Diagram` (schema + type), `parse`, `safeParse`,
-  `InkinValidationError`, `ValidationIssue`. Less-common schema exports
-  (layout engine, JSON Schema, individual zod schemas) remain at the
-  dedicated `@inkin/core/schema` subpath.
+  case: `Diagram` (schema + type), `DiagramInput` (the unparsed shape used by
+  `<DiagramStudio value>`), `parse`, `safeParse`, `InkinValidationError`,
+  `ValidationIssue`. Less-common schema exports (layout engine, JSON Schema,
+  individual zod schemas) remain at the dedicated `@inkin/core/schema` subpath.
+- **`DiagramInput` type** added to `@inkin/core/schema` and re-exported from
+  `@inkin/core`. Mirrors zod's `z.input<typeof Diagram>` — defaulted fields
+  (`Node.shape`, `Edge.style`, `Flow.duration`, `Flow.delay`) are optional,
+  matching what consumers actually write in object literals. The existing
+  `Diagram` type (output, all defaults filled) is unchanged for 0.1.0
+  backward compatibility. `<DiagramStudio>` accepts either shape.
 - **`'use client'` directive** at the top of `src/index.ts` and
   `DiagramStudio.tsx` so Next.js App Router and other RSC compilers treat
   imports as client-side. Verified preserved at the top of `dist/index.js`
