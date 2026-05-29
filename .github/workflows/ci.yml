@@ -61,13 +61,17 @@ jobs:
       - name: Bundle size (size-limit)
         run: pnpm size
 
-      - name: Type-export correctness (arethetypeswrong)
-        # Skipped from the local `pnpm verify` because `@arethetypeswrong/cli`'s
-        # streaming-gunzip tarball extractor (via fflate) is broken on Windows
-        # under recent Node releases — see fflate#207 and the corresponding
-        # workaround in @arethetypeswrong/core/createPackage.js. CI runs on
-        # Linux where the bug doesn't surface, so the gate lives here.
-        run: pnpm attw
+      # `pnpm attw` (arethetypeswrong) is intentionally NOT a CI gate:
+      # `@arethetypeswrong/core`'s tarball extractor uses fflate's streaming
+      # Gunzip and keeps only the LAST chunk callback, which is empty for any
+      # tarball that decompresses past one chunk (~64 kB). Reproducible end-to-
+      # end on both Windows + Node 24 (locally) AND Ubuntu + Node 22/24 (CI),
+      # against both this package's tarball and the published
+      # `@inkin/core@0.1.0`. Not platform-specific — a real upstream bug.
+      # Until it's fixed, type-export correctness is covered by the
+      # examples-typecheck step above (proves consumer-side resolution) plus
+      # the `npm pack` dry-run below. The `pnpm attw` script remains
+      # available for ad-hoc local runs once the upstream fix lands.
 
       - name: Publish dry-run (npm pack)
         run: npm pack --dry-run

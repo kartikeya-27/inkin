@@ -21,6 +21,7 @@ export { diagramJsonSchema } from './json-schema'
 export type { LayoutEngine, LayoutOptions } from './layout'
 
 export { createDagreLayout, dagreLayout, layout } from './layout'
+export type { DiagramInput } from './types'
 export {
   Cluster,
   Diagram,

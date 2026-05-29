@@ -66,10 +66,16 @@ subpath; consumers' `@inkin/core/schema` imports are byte-identical.
 - **SVG export** via `toSvg(element, options?)` (`html-to-image` under the
   hood). Also re-exported from the root entry as `toSvg` / `ToSvgOptions`.
 - **Convenience re-exports** from the root entry for the common React use
-  case: `Diagram` (schema + type), `parse`, `safeParse`,
-  `InkinValidationError`, `ValidationIssue`. Less-common schema exports
-  (layout engine, JSON Schema, individual zod schemas) remain at the
-  dedicated `@inkin/core/schema` subpath.
+  case: `Diagram` (schema + type), `DiagramInput` (the unparsed shape used by
+  `<DiagramStudio value>`), `parse`, `safeParse`, `InkinValidationError`,
+  `ValidationIssue`. Less-common schema exports (layout engine, JSON Schema,
+  individual zod schemas) remain at the dedicated `@inkin/core/schema` subpath.
+- **`DiagramInput` type** added to `@inkin/core/schema` and re-exported from
+  `@inkin/core`. Mirrors zod's `z.input<typeof Diagram>` — defaulted fields
+  (`Node.shape`, `Edge.style`, `Flow.duration`, `Flow.delay`) are optional,
+  matching what consumers actually write in object literals. The existing
+  `Diagram` type (output, all defaults filled) is unchanged for 0.1.0
+  backward compatibility. `<DiagramStudio>` accepts either shape.
 - **`'use client'` directive** at the top of `src/index.ts` and
   `DiagramStudio.tsx` so Next.js App Router and other RSC compilers treat
   imports as client-side. Verified preserved at the top of `dist/index.js`
@@ -98,10 +104,10 @@ subpath; consumers' `@inkin/core/schema` imports are byte-identical.
   surface (ESM 200 kB / CJS 200 kB with all deps minified + brotli; current
   size ~125 kB / ~137 kB) and the consolidated stylesheet (30 kB; current
   ~3 kB). Existing schema budgets unchanged.
-- **CI**: re-enabled `arethetypeswrong` as a CI gate now that the `.` entry
-  exists (was deferred in `0.1.0` per its CHANGELOG). Added a consumer-side
-  typecheck step (`pnpm --filter @inkin/examples exec tsc -b --noEmit`)
-  proving the published types resolve from a third-party app.
+- **CI**: added a consumer-side typecheck step (`pnpm --filter @inkin/examples
+  exec tsc -b --noEmit`) proving the published types resolve from a third-
+  party app. (`arethetypeswrong` is still NOT a CI gate — see Deferred
+  below.)
 
 ### Verified
 
@@ -119,14 +125,20 @@ subpath; consumers' `@inkin/core/schema` imports are byte-identical.
 
 ### Deferred
 
-- **`pnpm attw` from local `pnpm verify`**: the `@arethetypeswrong/core`
-  tarball extractor crashes on Windows + Node 24 due to an `fflate`
-  streaming-Gunzip chunking bug (`Cannot read properties of undefined
-  (reading 'filename')`) that fires on any package larger than ~64 kB,
-  including the previously-published `@inkin/core@0.1.0`. Not anything
-  this package does — verified by reproducing the bug end-to-end. The CI
-  pipeline runs `pnpm attw` on Linux (where the bug doesn't surface), so
-  the type-export gate is still enforced before publish.
+- **`pnpm attw` from BOTH local `pnpm verify` AND CI**: the
+  `@arethetypeswrong/core` tarball extractor uses fflate's streaming Gunzip
+  and keeps only the LAST chunk callback, which is empty for any tarball
+  that decompresses past one chunk (~64 kB). Repro confirmed on Windows +
+  Node 24 (local) and Ubuntu + Node 22/24 (CI) against both this package
+  and the previously-published `@inkin/core@0.1.0`. Not platform-specific
+  (an earlier suspicion that it was Windows-only proved wrong on first CI
+  run). Type-export correctness is instead enforced by the consumer-side
+  examples typecheck step (`pnpm --filter @inkin/examples exec tsc -b
+  --noEmit`) — running a real consumer's `tsc` against the freshly-built
+  types exercises the same export-map resolution paths attw would check,
+  plus the `npm pack --dry-run` step validates the tarball shape. The
+  `pnpm attw` script is kept available for ad-hoc local runs whenever the
+  upstream fix lands.
 
 [Unreleased]: https://github.com/kartikeya-27/inkin/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/kartikeya-27/inkin/releases/tag/v0.2.0

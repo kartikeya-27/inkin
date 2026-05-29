@@ -3,7 +3,7 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import { dagreLayout } from '../schema/layout'
-import type { Diagram } from '../schema/types'
+import type { DiagramInput } from '../schema/types'
 import { safeParse } from '../schema/validate'
 import styles from './DiagramStudio.module.css'
 import { type ToSvgOptions, toSvg } from './export/svg'
@@ -48,8 +48,14 @@ import { translate } from './translate'
  */
 
 export interface DiagramStudioProps {
-  /** The diagram to render. Must conform to the inkin schema (see `@inkin/core/schema`). */
-  readonly value: Diagram
+  /**
+   * The diagram to render. Accepts the **input** shape (`DiagramInput`) — the
+   * object literal you'd hand to `parse()` directly, with defaulted fields
+   * like `Node.shape` and `Edge.style` left out. A parsed `Diagram` is also
+   * accepted (output is structurally assignable to input). Validation happens
+   * internally on every reference change.
+   */
+  readonly value: DiagramInput
   /** Visual theme — reflected as `data-inkin-theme` on the wrapper. Default `'dark'`. */
   readonly theme?: InkinThemeName
   /**

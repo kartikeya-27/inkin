@@ -60,7 +60,7 @@ That's a complete read-only diagram with pan, zoom, and viewport controls. The w
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
-| `value` | `Diagram` | _required_ | The diagram to render. Validated on every reference change; failures render an inline error panel instead of a blank canvas. |
+| `value` | `DiagramInput` | _required_ | The diagram to render — the unparsed object literal you'd hand to `parse()`. Defaulted fields (`Node.shape`, `Edge.style`) can be omitted. Validated on every reference change; failures render an inline error panel instead of a blank canvas. |
 | `theme` | `'dark' \| 'light'` | `'dark'` | Reflected as `data-inkin-theme` on the wrapper; all theme tokens are scoped to that attribute. |
 | `layout` | `'auto' \| 'manual'` | `'auto'` | `'auto'` runs dagre on any node without a `position`. `'manual'` trusts the diagram as-is. |
 | `minimap` | `boolean` | `false` | Show xyflow's minimap overlay. |

@@ -302,3 +302,21 @@ export const Diagram = z
   })
 
 export type Diagram = z.infer<typeof Diagram>
+
+/**
+ * The **input** shape of a Diagram — what consumers hand to `parse()` or pass
+ * to `<DiagramStudio value={...}>`. Defaulted fields (`Node.shape`,
+ * `Edge.style`, `Flow.duration`, `Flow.delay`) are optional here; in the
+ * parsed `Diagram` type they are required because the parse step fills the
+ * defaults in.
+ *
+ * Use `DiagramInput` when authoring a diagram (object literals, JSON loaded
+ * from disk, AI-generated output before validation). Use `Diagram` when
+ * working with the result of `parse()` / `safeParse()` — every defaulted
+ * field is guaranteed present there.
+ *
+ * Output is assignable to input in TypeScript (a required field can stand in
+ * for an optional one), so a function whose parameter is typed `DiagramInput`
+ * also accepts a parsed `Diagram` cleanly.
+ */
+export type DiagramInput = z.input<typeof Diagram>
