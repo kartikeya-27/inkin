@@ -94,16 +94,12 @@ test.describe('inline-edit — edge label (Phase 10 JSDOM gap)', () => {
     const edgeLabel = page.locator('div[tabindex="-1"]').filter({ hasText: 'refine' }).first()
     await expect(edgeLabel).toBeVisible()
 
-    // dispatchEvent goes directly to the target element's event listener
-    // chain, bypassing the pointer-event interception that prevents a
-    // normal `.dblclick()`: xyflow draws a transparent
-    // `.react-flow__edge-interaction` SVG path over the edge midpoint
-    // for its own click-on-edge handling, which steals pointer events
-    // from the EdgeLabelRenderer portal even when the label is visually
-    // on top. Dispatching the React-synthetic `dblclick` directly to the
-    // label's DOM node is the equivalent of a real user clicking on the
-    // pixel and reliable across browser versions.
-    await edgeLabel.dispatchEvent('dblclick')
+    // Real mouse double-click — exercises the `pointer-events: all` fix
+    // on `.label` that lets clicks reach the EditableLabel through
+    // xyflow's transparent `.react-flow__edge-interaction` overlay
+    // (which previously stole the click and made edge labels unrenamable
+    // by a real user).
+    await edgeLabel.dblclick()
 
     const input = page.getByLabel(/^label for edge /)
     await expect(input).toBeVisible()
