@@ -12,6 +12,141 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
+## [0.3.0] — 2026-05-30
+
+The editing release. `<DiagramStudio>` accepts a new `onChange?: (next:
+Diagram) => void` prop — supply it for full in-place editing (drag,
+drag-to-connect, Delete-key cascade removal, inline label editing,
+keyboard a11y); omit it for byte-for-byte 0.2.0 read-only behavior.
+The schema, the `Diagram` type, and the `0.2.0` invocation shape stay
+unchanged.
+
+### Added
+
+- **`<DiagramStudio onChange={…}>`** turns on editing. The callback
+  receives the parsed + re-validated next `Diagram`; consumers update
+  their state (and any persistence layer) inside the handler. The
+  schema is the single source of truth — the editor holds no
+  independent state.
+- **Drag to move** — drag a node body; xyflow handles the gesture, the
+  sync hook dispatches a `MoveNode` patch at drag-end, the consumer's
+  `onChange` fires exactly once with the new absolute coordinates.
+  Clustered children are constrained by `extent: 'parent'`; cross-
+  cluster drag is deferred to 0.4.0 (Inspector / Palette territory).
+- **Drag-to-connect** — drag from a node handle to another node;
+  produces a `ConnectEdge` patch. The reducer auto-generates an
+  explicit `${from}->${to}#N` id only when the implicit form would
+  collide with an existing edge (parallel-edge case); single edges
+  keep the implicit form.
+- **Delete-key cascade** — Backspace or Delete on selected nodes
+  cascade-removes incident edges and prunes affected flow entries
+  (flows that become empty are dropped). One patch, one `onChange`,
+  one dispatch — even though xyflow fires the orphan-edge events and
+  the node event as separate change batches.
+- **Inline label editing** — double-click on a node label, node
+  sublabel, or edge label opens a width-controlled `<input>` swap-in.
+  Enter or blur commits via a `SetField` patch; Esc cancels. Empty
+  strings are accepted (intentional blank labels). The `nodrag` /
+  `nopan` className escape hatches keep xyflow's pointer capture
+  from stealing focus.
+- **Keyboard a11y floor** — `nodesFocusable={true}` flips on in edit
+  mode (Tab cycles node focus through xyflow). Our keymap layer adds:
+    - Arrow keys nudge every selected node by 10 px (one `MoveNode`
+      per selected node, microtask-batched into one `onChange`).
+    - Enter on a focused node opens label editing.
+    - Esc cancels the active edit if any, otherwise clears selection.
+- **Selection visual feedback** — selected nodes carry an accent-
+  colored 2 px box-shadow ring on top of the existing node shadow;
+  selected edges thicken to 2.5 px in the accent color and the edge
+  label's border switches to accent. Both surfaces honor
+  `--inkin-accent-primary` so theme overrides Just Work. Smooth
+  120 ms ease-out transition on selection state change.
+- **Focus indicator** — `:focus-visible` outline on the xyflow node
+  wrapper for keyboard navigation; sits 3 px outside the selection
+  ring so the two visuals stack cleanly.
+- **`DiagramInput` typed `value` prop** — `<DiagramStudio value>` now
+  accepts the unparsed input shape (defaulted fields optional). The
+  parsed `Diagram` is still assignable to it (output is structurally
+  compatible with input in TypeScript).
+- **Examples app — editable playground sample** — fourth tab in the
+  examples Vite app exercises the editing flow with `useState<DiagramInput>`,
+  a "Last action" line, an `onChange` counter, and a reset button. JSDoc
+  shows the two-line localStorage persistence pattern. Read-only samples
+  unchanged (they verify the 0.2.0 surface still works).
+
+### Changed
+
+- **Bundle**: React surface ESM 128.22 kB (≤ 200 kB budget — well under).
+  +3 kB from 0.2.0's 125 kB, in line with the +5–9 kB plan estimate.
+  Schema unchanged, styles.css 3.27 kB (≤ 30 kB).
+- **`translate.ts`** no longer hardcodes `selectable / draggable /
+  connectable: false` on regular (rect / terminal) nodes — those flags
+  are now owned by GraphRenderer's top-level `nodesDraggable` etc.,
+  which derive from `editable`. Cluster nodes keep their `false`
+  overrides since they remain non-editable in 0.3.0.
+- **`BaseNode` Handles**: dropped per-handle `isConnectable={false}`
+  (a 0.2.0 read-only override); xyflow's `nodesConnectable` controls
+  it now.
+- **Editor-store slices filled in**:
+    - `SelectionSlice` — `selectedNodeIds / selectedEdgeIds /
+      selectedClusterIds: ReadonlySet<string>`, identity-preserving
+      `setSelection({ nodes?, edges?, clusters? })` and
+      `clearSelection()`. Identical input → same Set reference →
+      subscribers don't re-render.
+    - `EditSlice` — single-slot `editTarget` + `draftText`;
+      `startEdit / updateDraft / commitEdit / cancelEdit`. Schema-
+      agnostic (commitEdit returns the committed value; the sync
+      layer turns it into a `SetField` patch).
+    - `InteractionSlice` — still empty (lands with the Palette
+      / Inspector in 0.4.0).
+- **CI**: new `e2e` job runs Playwright Chromium after `verify`
+  succeeds. Browser binaries cached between runs keyed on the
+  `@playwright/test` version.
+
+### Verified
+
+- **183 vitest tests pass** — reducer + cascades + reverse translate +
+  store slices + sync read & write + EditableLabel + integration
+  scenarios + keymap + multi-instance isolation + selection mirroring.
+- **8 Playwright e2e tests pass** — drag (no jitter, exactly one
+  `onChange` per drag, multi-drag accumulation), delete with cascade
+  (Delete AND Backspace), inline edit on node label (Enter / Esc /
+  blur), inline edit on edge label.
+- All bundle budgets pass; lint clean; typecheck clean.
+
+### Internal — architectural notes worth surfacing
+
+- **Microtask-batched patch dispatch** — `useFlowSync` collects every
+  patch dispatched within a tick into one queue, applies them in
+  order against the latest parsed snapshot, and calls `onChange`
+  exactly once with the final state. Solves the "Delete fires N+1
+  onChange calls" case where xyflow's orphan-edge remove events
+  (`onEdgesChange`) precede the node remove (`onNodesChange`). The
+  Playwright drag spec is the regression gate.
+- **No-op short-circuits in the reducer** — `MoveNode` at the same
+  position and `DeleteEdge` of an already-removed edge both return
+  the input by reference; the dispatcher's `next === parsed` check
+  then suppresses `onChange`. Together with batching, this means
+  pure-cosmetic xyflow events (click-without-drag, orphan cleanup)
+  produce zero consumer-visible noise.
+- **EditingContext** (`editing/EditingContext.tsx`) is mounted ONLY in
+  editable mode. `useEditingActions()` returns `null` in read-only
+  mode, which `BaseNode` / `LabeledEdge` use to decide between a
+  static `<div>` and an `<EditableLabel>`. The read-only canvas has
+  zero editing affordance — no hover cursor, no double-click handler.
+
+### Deferred
+
+- **Inspector + Palette UI** — 0.4.0. Lets non-engineers add nodes /
+  clusters, change shape / style / cluster assignment via side-panel
+  fields.
+- **`pnpm attw`** — still skipped (the fflate streaming-Gunzip bug in
+  `@arethetypeswrong/core` that fires on tarballs over ~64 kB hasn't
+  been fixed upstream). Type-export correctness gated by the consumer-
+  side examples typecheck + `npm pack --dry-run`.
+
+[0.3.0]: https://github.com/kartikeya-27/inkin/releases/tag/v0.3.0
+
 ## [0.2.0] — 2026-05-28
 
 The read-only React renderer. `@inkin/core` (the bare import) now exists and

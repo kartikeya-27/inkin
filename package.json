@@ -1,7 +1,7 @@
 {
   "name": "@inkin/core",
-  "version": "0.2.0",
-  "description": "Editable React diagrams from a typed schema. v0.2.0 adds the read-only <DiagramStudio> React component (xyflow-powered pan/zoom, custom nodes/edges/clusters, dark+light themes, SVG export). The framework-agnostic schema kernel remains available at the @inkin/core/schema subpath. Editing lands in 0.3.0.",
+  "version": "0.3.0",
+  "description": "Editable React diagrams from a typed schema. v0.3.0 adds in-place editing to <DiagramStudio>: drag, drag-to-connect, Delete-key cascade removal, double-click inline label editing, keyboard a11y. Supply `onChange` to opt in; omit it for the 0.2.0 read-only experience. The framework-agnostic schema kernel remains at the @inkin/core/schema subpath. Inspector / Palette chrome lands in 0.4.0.",
   "license": "MIT",
   "author": "kartikeya27",
   "repository": {
