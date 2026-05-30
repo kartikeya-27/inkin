@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react'
+import type { MouseEvent } from 'react'
 import { EditableLabel, useEditingActions } from '../editing'
 import { cn } from '../lib/cn'
 import { useEditorStore } from '../store'
@@ -78,8 +79,24 @@ export function BaseNode({ id, data, selected, className }: BaseNodeProps) {
   // subscribe to an unused value just to avoid a conditional hook call.
   const draftText = useEditorStore((s) => (isEditingLabel || isEditingSublabel ? s.draftText : ''))
 
+  // Whole-body double-click → edit label. EditableLabel itself stops
+  // propagation on its own dblclick, so dblclicking directly on the
+  // sublabel still routes through the sublabel handler (no race). The
+  // root handler covers the padding around the labels — without it, a
+  // dblclick a few pixels off the text falls through to xyflow's pane
+  // and triggers its default zoom-on-doubleclick.
+  const handleRootDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (editing === null) return
+    event.stopPropagation()
+    editing.startEdit({ kind: 'node-label', id }, data.label)
+  }
+
   return (
-    <div className={cn(styles.root, selected && styles.selected, className)}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: double-click is the documented affordance for inline rename, mirroring EditableLabel; keyboard equivalent is Enter on a focused node, handled by useKeymap
+    <div
+      className={cn(styles.root, selected && styles.selected, className)}
+      onDoubleClick={handleRootDoubleClick}
+    >
       <Handle type="target" position={Position.Left} className={styles.handle} />
       <Handle type="source" position={Position.Right} className={styles.handle} />
 

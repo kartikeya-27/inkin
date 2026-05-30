@@ -55,6 +55,19 @@ test.describe('inline-edit — node label', () => {
     await expect(page.getByTestId('onchange-count')).toHaveText('0')
   })
 
+  test('double-click on the node body (off the label text) also opens edit', async ({ page }) => {
+    // Click in the top-left padding zone of the node — clearly inside the
+    // node body but outside the centered EditableLabel's hit-area. Without
+    // the root-level dblclick handler this would fall through to xyflow's
+    // pane and trigger zoom-on-doubleclick instead.
+    const nodeA = page.locator('.react-flow__node[data-id="a"]')
+    await nodeA.dblclick({ position: { x: 10, y: 8 } })
+
+    const input = page.getByLabel('label for node a')
+    await expect(input).toBeVisible()
+    await expect(input).toHaveValue('Idea')
+  })
+
   test('blur (without Enter) commits — single onChange', async ({ page }) => {
     const labelA = page.locator('.react-flow__node[data-id="a"] div[tabindex="-1"]').first()
     await labelA.dblclick()
