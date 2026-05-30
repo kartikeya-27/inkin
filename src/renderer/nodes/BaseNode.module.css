@@ -24,16 +24,43 @@
   font-family: var(--inkin-font-sans);
   box-shadow: var(--inkin-shadow-node);
   box-sizing: border-box;
+  /* Smooth selection-ring fade-in. Short duration so the response feels
+   * immediate but not abrupt. */
+  transition: box-shadow 120ms ease-out;
+}
+
+/* Selection ring — driven by xyflow's NodeProps.selected, plumbed through
+ * RectNode / TerminalNode → BaseNode. Uses a second box-shadow layer so it
+ * composes with the existing shadow rather than replacing it. The accent
+ * color comes from the active theme tokens. */
+.selected {
+  box-shadow:
+    var(--inkin-shadow-node),
+    0 0 0 2px var(--inkin-accent-primary);
 }
 
 .handle {
-  /* Functional anchor for edges, visually invisible in read-only 0.2.0. */
-  width: 6px;
-  height: 6px;
+  /* Functional anchor for edges. Hidden at rest so the node reads as a
+   * clean shape; fades in on node hover so the drag-to-connect
+   * affordance is discoverable. The `:hover` selector is on the
+   * `.react-flow__node` ancestor (xyflow's wrapper), not on the handle
+   * itself — handles have `pointer-events: none` by default which would
+   * make a self-hover unreliable. */
+  width: 8px;
+  height: 8px;
+  background: var(--inkin-accent-primary);
+  border: 2px solid var(--inkin-bg-canvas);
   opacity: 0;
-  pointer-events: none;
-  background: transparent;
-  border: none;
+  transition: opacity 120ms ease-out;
+}
+
+/* Reveal handles on node hover so the drag-to-connect affordance is
+ * discoverable. The `:hover` rides on xyflow's `.react-flow__node`
+ * wrapper (one level above our `.root`), so we can't write the rule
+ * inside `.root:hover .handle`; the `:global()` escape hatch keeps the
+ * class name literal through CSS Modules' hash transform. */
+:global(.react-flow__node:hover) .handle {
+  opacity: 1;
 }
 
 .label {

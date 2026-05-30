@@ -26,7 +26,7 @@
  */
 
 import { cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DiagramStudio } from '../../src/renderer/DiagramStudio'
 import type { Diagram } from '../../src/schema/types'
 
@@ -89,5 +89,44 @@ describe('<DiagramStudio>', () => {
     expect(wrappers).toHaveLength(2)
     expect(wrappers[0]).toHaveAttribute('data-inkin-theme', 'dark')
     expect(wrappers[1]).toHaveAttribute('data-inkin-theme', 'light')
+  })
+
+  it('mounts in editable mode when onChange is supplied without throwing', () => {
+    const onChange = vi.fn()
+    const { container } = render(<DiagramStudio value={validDiagram} onChange={onChange} />)
+    const wrapper = container.firstElementChild
+    expect(wrapper).not.toBeNull()
+    expect(wrapper).toHaveAttribute('data-inkin-theme', 'dark')
+    // Component mounts without dispatch yet — onChange only fires on real events.
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('survives a value-reference change without unmounting', () => {
+    const onChange = vi.fn()
+    const next: Diagram = {
+      schemaVersion: 1,
+      nodes: [{ id: 'a', label: 'Renamed', shape: 'rect' }],
+      edges: [],
+    }
+    const { container, rerender } = render(
+      <DiagramStudio value={validDiagram} onChange={onChange} />,
+    )
+    const wrapperBefore = container.firstElementChild
+    rerender(<DiagramStudio value={next} onChange={onChange} />)
+    const wrapperAfter = container.firstElementChild
+    // Same DOM element — providers stayed mounted; only the inner state re-seeded.
+    expect(wrapperAfter).toBe(wrapperBefore)
+  })
+
+  it('shows the inline error panel in editable mode too when value is invalid', () => {
+    const onChange = vi.fn()
+    const invalid = {
+      schemaVersion: 1,
+      nodes: [{ label: 'missing-id', shape: 'rect' }],
+      edges: [],
+    } as unknown as Diagram
+    const { getByRole } = render(<DiagramStudio value={invalid} onChange={onChange} />)
+    expect(getByRole('alert')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

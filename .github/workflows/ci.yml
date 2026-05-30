@@ -75,3 +75,63 @@ jobs:
 
       - name: Publish dry-run (npm pack)
         run: npm pack --dry-run
+
+  e2e:
+    name: e2e (playwright)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build is required: examples/ workspace resolves @inkin/core through
+      # `package.json#exports.types`, which points at `dist/`.
+      - name: Build library
+        run: pnpm build
+
+      # Cache the Playwright browser binaries between runs. Cache key
+      # includes the @playwright/test version so a Playwright upgrade
+      # invalidates the cache (browser revs are tied to it).
+      - name: Get @playwright/test version
+        id: pw-version
+        run: |
+          ver=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$ver" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright browsers (chromium only)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm test:e2e:install
+
+      # Ensure system deps for Chromium are installed even on cache hit
+      # (the cached browsers don't include APT packages).
+      - name: Install Playwright system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run Playwright e2e
+        run: pnpm test:e2e
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

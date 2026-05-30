@@ -2,11 +2,12 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.2.0` — the **read-only `<DiagramStudio>` React renderer** plus the framework-agnostic schema kernel (still at `./schema`). Editing affordances (drag, connect, inline edit, inspector, palette) land in `0.3.0`. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.3.0` — the **editing release**. `<DiagramStudio>` now accepts an `onChange` prop for full in-place editing (drag, drag-to-connect, Delete-key cascade, double-click inline label editing, keyboard a11y). Omit `onChange` for byte-for-byte 0.2.0 read-only behavior. Inspector / Palette chrome lands in `0.4.0`. See [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.2.0)
+## What this gives you (today, at 0.3.0)
 
 - A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
+- **In-place editing when you supply `onChange`** — drag to move, drag handles to connect, Delete or Backspace to remove with cascade, double-click any label to edit it inline. Arrow-key nudges and Esc-cancel come for free. Same component, two visible UIs.
 - A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
 - Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
@@ -34,7 +35,7 @@ import '@inkin/core/styles.css'
 
 export function Demo() {
   return (
-    <div style={{ height: 600 }}>
+    <div style={{ width: '100%', height: 600 }}>
       <DiagramStudio
         value={{
           schemaVersion: 1,
@@ -54,13 +55,14 @@ export function Demo() {
 }
 ```
 
-That's a complete read-only diagram with pan, zoom, and viewport controls. The wrapper inherits its parent's size, so size the parent — typical use is `height: 600px` or a flex/grid child.
+That's a complete read-only diagram with pan, zoom, and viewport controls. The wrapper must have explicit width *and* height — xyflow measures the parent on first mount; if either dimension reads `0` before CSS applies (common in iframes / sandboxes / flex parents without `min-width: 0`), it logs a harmless one-shot `[React Flow] error#004` warning. Setting both upfront avoids the warning. Typical sizes: `height: 600` for an embed; `width: '100vw', height: '100vh'` for a full-page canvas.
 
 ### Props
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
 | `value` | `DiagramInput` | _required_ | The diagram to render — the unparsed object literal you'd hand to `parse()`. Defaulted fields (`Node.shape`, `Edge.style`) can be omitted. Validated on every reference change; failures render an inline error panel instead of a blank canvas. |
+| `onChange` | `(next: Diagram) => void` | — | Editing toggle. Supply to enable drag / connect / delete / inline edit. Omit for the read-only experience. The callback receives the parsed-and-validated next `Diagram`; consumers update their state inside it. |
 | `theme` | `'dark' \| 'light'` | `'dark'` | Reflected as `data-inkin-theme` on the wrapper; all theme tokens are scoped to that attribute. |
 | `layout` | `'auto' \| 'manual'` | `'auto'` | `'auto'` runs dagre on any node without a `position`. `'manual'` trusts the diagram as-is. |
 | `minimap` | `boolean` | `false` | Show xyflow's minimap overlay. |
@@ -104,9 +106,43 @@ const DiagramStudio = dynamic(
 )
 ```
 
-### Read-only today
+### Editable mode — supply `onChange`
 
-`0.2.0` renders diagrams — it does not edit them. Pan and zoom work (xyflow defaults). Drag-to-move, drag-to-connect, inline label editing, inspector panel, and palette all land in `0.3.0` behind an `onChange` prop. The `value` prop, the component shape, and the schema stay additive across the 0.x line.
+```tsx
+import { type Diagram, type DiagramInput, DiagramStudio } from '@inkin/core'
+import '@inkin/core/styles.css'
+import { useState } from 'react'
+
+export function EditableDemo() {
+  const [diagram, setDiagram] = useState<DiagramInput>({
+    schemaVersion: 1,
+    nodes: [
+      { id: 'a', label: 'Idea',  position: { x: 0,   y: 0 } },
+      { id: 'b', label: 'Ship', shape: 'terminal', position: { x: 250, y: 0 } },
+    ],
+    edges: [{ from: 'a', to: 'b', label: 'go' }],
+  })
+
+  return (
+    <div style={{ width: '100%', height: 600 }}>
+      <DiagramStudio
+        value={diagram}
+        onChange={(next: Diagram) => setDiagram(next)}
+      />
+    </div>
+  )
+}
+```
+
+What turns on with `onChange`:
+
+- **Drag** a node body to move it. Children stay inside their cluster (drag-end fires one `onChange`, no jitter during the drag).
+- **Drag from a node handle** to another node to create a labeled edge. Parallel edges get auto-generated explicit ids (`a->b#2`).
+- **Click + Delete / Backspace** removes a node along with every incident edge (cascade) and prunes flows that reference removed edges.
+- **Double-click** a label, sublabel, or edge label to edit it inline. Enter or blur commits, Esc cancels. Empty strings are valid.
+- **Tab** to focus a node, **arrows** to nudge it by 10 px, **Enter** to edit its label, **Esc** to cancel-edit or clear selection.
+
+Every editing event flows through a pure schema reducer and is re-validated before `onChange` fires — invalid diagrams can never escape from the editor. Persistence is whatever your `onChange` does: a `useState`, a `localStorage.setItem`, a `fetch` to your backend — see the [examples app](examples/src/App.tsx) for a working playground.
 
 ## Schema-only quickstart (framework-agnostic)
 
@@ -214,8 +250,8 @@ The theme attribute lives on the `<DiagramStudio>` wrapper, so two instances on 
 | Version | Headline | What gets added to `@inkin/core` | Status |
 |---|---|---|---|
 | `0.1.0` | Schema kernel (AI-ready) | `@inkin/core/schema` subpath | ✅ shipped |
-| **`0.2.0`** | Read-only `<DiagramStudio>` React renderer — you are here | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
-| `0.3.0` | Core editing (drag, connect, delete, inline label) | `onChange` prop; root entry grows; schema subpath stable | planned |
+| `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
+| **`0.3.0`** | Core editing (drag, connect, delete, inline label) — you are here | `onChange` prop; `DiagramInput` type; editing layer | ✅ shipped |
 | `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | planned |
 | `0.5.0` | Flow animation (CSS `offset-path` tokens) | root entry grows | planned |
 | `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |

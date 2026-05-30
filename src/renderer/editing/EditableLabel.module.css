@@ -1,0 +1,56 @@
+/*
+ * EditableLabel — minimal visual styling for the resting <div> and the
+ * <input> swap-in. The component is used inside `BaseNode` (rect + terminal)
+ * and `LabeledEdge`, all of which already set typography via their own CSS
+ * modules; this stylesheet only touches the affordances that the editing
+ * primitive itself owns:
+ *   - resting state: cursor-text on hover (signals "this is editable")
+ *   - editing state: minimal input chrome that fits inside a 180 px node
+ *     without producing layout jump on the toggle
+ *
+ * Selection / focus rings on the parent node/edge are owned by the parent's
+ * CSS module — this file deliberately avoids them so styling stays
+ * compositional.
+ */
+
+.staticLabel {
+  cursor: text;
+  outline: none;
+  /* Render as inline-block so the parent's flex/grid layout doesn't squash
+   * the static label differently from the input. */
+  display: inline-block;
+}
+
+/* When the resting value is empty (e.g. a freshly-drawn edge with no
+ * label yet), render the placeholder text at low opacity + italic so the
+ * slot stays discoverable without competing visually with real labels. */
+.staticLabelEmpty {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.input {
+  /* Inherit font + color from the parent so the swap from <div> to <input>
+   * doesn't shift typography. Border / outline are flat — the active edit
+   * state is signaled by the input's blinking caret + the absent
+   * staticLabel hover. */
+  font: inherit;
+  color: inherit;
+  background: var(--inkin-bg-canvas);
+  border: var(--inkin-border-width) solid var(--inkin-accent-primary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: -2px -5px;
+  outline: none;
+  /* Match common label widths inside our nodes / edge midpoints; the
+   * parent CSS module can override via the `className` prop if needed. */
+  width: 100%;
+  min-width: 60px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.input::placeholder {
+  color: var(--inkin-text-secondary);
+  opacity: 0.7;
+}

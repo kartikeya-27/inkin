@@ -31,10 +31,10 @@ export type EditorStore = SelectionSlice & InteractionSlice & EditSlice
 export type EditorStoreInstance = ReturnType<typeof createInkinStore>
 
 export function createInkinStore() {
-  return createStore<EditorStore>(() => ({
-    ...createSelectionSlice(),
-    ...createInteractionSlice(),
-    ...createEditSlice(),
+  return createStore<EditorStore>((...args) => ({
+    ...createSelectionSlice(...args),
+    ...createInteractionSlice(...args),
+    ...createEditSlice(...args),
   }))
 }
 
@@ -75,6 +75,27 @@ export function useEditorStore<T>(selector: (state: EditorStore) => T): T {
     )
   }
   return useStore(store, selector)
+}
+
+/**
+ * Get the per-instance Zustand store instance directly — for non-reactive
+ * reads via `.getState()` or one-shot subscriptions. Pair with
+ * `useEditorStore` for reactive slice reads.
+ *
+ * Used by the EditingContext (`editing/EditingContext.tsx`) to read the
+ * current `editTarget` at commit time without forcing a re-render on every
+ * keystroke. MUST be called inside `<DiagramStudio>` (same provider
+ * requirement as `useEditorStore`).
+ */
+export function useEditorStoreApi(): EditorStoreInstance {
+  const store = useContext(InkinStoreContext)
+  if (store === null) {
+    throw new Error(
+      'useEditorStoreApi must be used inside <DiagramStudio>. ' +
+        'The hook reads from the InkinStoreProvider that DiagramStudio mounts.',
+    )
+  }
+  return store
 }
 
 // Re-export slice types so consumers and future components can reference them.

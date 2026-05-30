@@ -1,38 +1,45 @@
-import { DiagramStudio, type InkinThemeName } from '@inkin/core'
-import { useState } from 'react'
+import { type Diagram, DiagramStudio, type DiagramInput, type InkinThemeName } from '@inkin/core'
+import { useCallback, useState } from 'react'
 import { architecture } from './samples/architecture'
+import { editable as initialEditable } from './samples/editable'
 import { lifecycle } from './samples/lifecycle'
 import { minimal } from './samples/minimal'
 
 /**
- * Examples playground for `@inkin/core@0.2.0` — the read-only renderer.
+ * Examples playground for `@inkin/core@0.3.0` — the editing release.
  *
- * Three samples are wired in via a header dropdown so each rendering path
- * (linear chain, clustered architecture, state machine with self-loop) can
- * be eyeballed against the production build in one window. The dark/light
- * toggle exercises the `data-inkin-theme` attribute + token CSS.
+ * Four samples wired in via a header dropdown:
+ *   - Minimal, Lifecycle, Architecture  — read-only (no onChange).
+ *     Demonstrates the 0.2.0 surface still works byte-for-byte after the
+ *     0.3.0 changes.
+ *   - Editable playground (new in 0.3.0) — passes an onChange that round-
+ *     trips into a useState. Drag a node, double-click a label, press
+ *     Delete on a selected node — every change updates the displayed
+ *     "Last action" + the diagram re-renders from React state.
  *
- * No `onChange` is passed — editing affordances land in 0.3.0. Pan and zoom
- * still work because xyflow ships them by default; that matches the plan's
- * "interactive read-only" promise.
+ * For real-world consumers, swapping the in-memory useState for
+ * localStorage persistence is a two-line change — see the inline comment
+ * in the EditablePlaygroundShell component below.
  */
 
-const samples = {
+const readOnlySamples = {
   minimal,
   lifecycle,
   architecture,
 } as const
 
-type SampleKey = keyof typeof samples
+type ReadOnlyKey = keyof typeof readOnlySamples
+type SampleKey = ReadOnlyKey | 'editable'
 
 const sampleLabels: Record<SampleKey, string> = {
-  minimal: 'Minimal — 3 nodes',
-  lifecycle: 'Lifecycle — state machine',
-  architecture: 'Architecture — clustered',
+  minimal: 'Minimal — 3 nodes (read-only)',
+  lifecycle: 'Lifecycle — state machine (read-only)',
+  architecture: 'Architecture — clustered (read-only)',
+  editable: 'Editable playground — drag, edit, delete',
 }
 
 export function App() {
-  const [sampleKey, setSampleKey] = useState<SampleKey>('minimal')
+  const [sampleKey, setSampleKey] = useState<SampleKey>('editable')
   const [theme, setTheme] = useState<InkinThemeName>('dark')
 
   return (
@@ -59,7 +66,7 @@ export function App() {
         }}
       >
         <strong>@inkin/core</strong>
-        <span style={{ opacity: 0.7 }}>0.2.0 read-only renderer</span>
+        <span style={{ opacity: 0.7 }}>0.3.0 editing release</span>
         <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           Sample
           <select
@@ -90,9 +97,116 @@ export function App() {
           </select>
         </label>
       </header>
-      <main style={{ flex: 1, minHeight: 0 }}>
-        <DiagramStudio value={samples[sampleKey]} theme={theme} minimap controls />
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {sampleKey === 'editable' ? (
+          <EditablePlaygroundShell theme={theme} />
+        ) : (
+          <DiagramStudio value={readOnlySamples[sampleKey]} theme={theme} minimap controls />
+        )}
       </main>
     </div>
   )
+}
+
+/**
+ * Editable playground shell — keeps the current Diagram in React state and
+ * surfaces a "Last action" line so consumers can see exactly what
+ * `onChange` fired with.
+ *
+ * Real-world persistence is a two-line change:
+ *
+ *   const [diagram, setDiagram] = useState<DiagramInput>(() =>
+ *     JSON.parse(localStorage.getItem('inkin-diagram') ?? JSON.stringify(initialEditable)),
+ *   )
+ *
+ *   const handleChange = (next: Diagram) => {
+ *     setDiagram(next)
+ *     localStorage.setItem('inkin-diagram', JSON.stringify(next))
+ *   }
+ *
+ * Anything that can hold a JSON-serializable object works: localStorage,
+ * IndexedDB, a fetch() to your backend. The schema is the wire format —
+ * persist what `onChange` gives you, restore it back into `value`.
+ */
+function EditablePlaygroundShell({ theme }: { readonly theme: InkinThemeName }) {
+  const [diagram, setDiagram] = useState<DiagramInput>(initialEditable)
+  const [lastAction, setLastAction] = useState<string>('—')
+  const [onChangeCount, setOnChangeCount] = useState<number>(0)
+
+  const handleChange = useCallback((next: Diagram) => {
+    setDiagram(next)
+    setLastAction(summarizeDiagram(next))
+    setOnChangeCount((c) => c + 1)
+  }, [])
+
+  const reset = useCallback(() => {
+    setDiagram(initialEditable)
+    setLastAction('reset to initial sample')
+    setOnChangeCount(0)
+  }, [])
+
+  return (
+    <>
+      <div
+        data-testid="editable-status"
+        data-onchange-count={onChangeCount}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '8px 20px',
+          borderBottom: `1px solid ${theme === 'dark' ? '#30363d' : '#d1d9e0'}`,
+          fontSize: 13,
+          opacity: 0.85,
+        }}
+      >
+        <span>
+          <strong>{diagram.nodes.length}</strong> nodes,{' '}
+          <strong>{diagram.edges.length}</strong> edges
+        </span>
+        <span>
+          onChange fired <strong data-testid="onchange-count">{onChangeCount}</strong>
+          {onChangeCount === 1 ? ' time' : ' times'}
+        </span>
+        <span style={{ marginLeft: 'auto' }}>
+          Last action: <code>{lastAction}</code>
+        </span>
+        <button
+          type="button"
+          onClick={reset}
+          style={{
+            padding: '4px 10px',
+            border: `1px solid ${theme === 'dark' ? '#30363d' : '#d1d9e0'}`,
+            background: 'transparent',
+            color: 'inherit',
+            cursor: 'pointer',
+            borderRadius: 4,
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <DiagramStudio
+          value={diagram}
+          onChange={handleChange}
+          theme={theme}
+          minimap
+          controls
+          layout="manual"
+        />
+      </div>
+    </>
+  )
+}
+
+/**
+ * Quick human-readable summary of the latest onChange payload, shown in
+ * the "Last action" line of the editable playground. Lightweight string
+ * formatting only — no diff machinery.
+ */
+function summarizeDiagram(d: Diagram): string {
+  return `${d.nodes.length} nodes / ${d.edges.length} edges` +
+    (d.clusters && d.clusters.length > 0 ? ` / ${d.clusters.length} clusters` : '') +
+    (d.flows && d.flows.length > 0 ? ` / ${d.flows.length} flows` : '')
 }

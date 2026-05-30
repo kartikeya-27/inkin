@@ -182,15 +182,17 @@ export function translate(diagram: Diagram): TranslatedDiagram {
         ? { label: node.label, sublabel: node.sublabel }
         : { label: node.label }
 
+    // Note: from 0.3.0 the `selectable` / `draggable` / `connectable` flags
+    // on regular nodes are intentionally omitted so xyflow inherits the
+    // top-level defaults that GraphRenderer sets based on whether `onChange`
+    // was provided. Cluster nodes keep their `false` overrides above — they
+    // remain non-editable even in edit mode (cross-cluster drag and cluster
+    // rename land in 0.4.0 with the Inspector / Palette chrome).
     const xyNode: XyNode<InkinNodeData> = {
       id: node.id,
       type: node.shape, // 'rect' | 'terminal' — matches keys in renderer/nodes/nodeTypes
       position,
       data,
-      // Read-only renderer (0.2.0): same constraints as cluster nodes above.
-      selectable: false,
-      draggable: false,
-      connectable: false,
     }
 
     if (node.cluster !== undefined) {
@@ -221,6 +223,46 @@ export function translate(diagram: Diagram): TranslatedDiagram {
   return {
     nodes: [...clusterNodes, ...regularNodes] as XyNode[],
     edges: edges as XyEdge[],
+  }
+}
+
+/**
+ * Convert an xyflow node's position back to schema-absolute canvas coordinates.
+ *
+ * This is the inverse of the absolute→relative conversion at the top of
+ * {@link translate} (the block that subtracts the parent cluster's position
+ * from a clustered child's coordinates). xyflow stores clustered children
+ * with positions relative to their parent cluster's top-left, but the inkin
+ * schema stores every node's position in absolute canvas coordinates, so
+ * the editing layer needs to put the cluster offset back before constructing
+ * a `MoveNode` patch.
+ *
+ * Usage at drag-end (see `useFlowSync` in phase 6): given the changed xyflow
+ * node, look up its parent in xyflow's current nodes array (if any) and pass
+ * the parent's `position` as the second argument. For top-level nodes that
+ * have no parent, omit the second argument — the helper is a no-op for them.
+ *
+ *   const parent = node.parentId
+ *     ? currentXyNodes.find((n) => n.id === node.parentId)
+ *     : undefined
+ *   const absolute = xyflowPositionToAbsolute(node.position, parent?.position)
+ *
+ * Cluster nodes themselves are top-level in xyflow (their `position` IS the
+ * cluster's absolute origin), so dragging a cluster simply passes through.
+ * Children's *schema-absolute* coordinates follow the cluster when the
+ * cluster moves — that's the intended behavior, identical to dragging the
+ * cluster in the editor.
+ */
+export function xyflowPositionToAbsolute(
+  position: { readonly x: number; readonly y: number },
+  parentAbsolutePosition?: { readonly x: number; readonly y: number },
+): { x: number; y: number } {
+  if (parentAbsolutePosition === undefined) {
+    return { x: position.x, y: position.y }
+  }
+  return {
+    x: position.x + parentAbsolutePosition.x,
+    y: position.y + parentAbsolutePosition.y,
   }
 }
 

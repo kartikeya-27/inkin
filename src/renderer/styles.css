@@ -23,3 +23,4 @@
 @import "@xyflow/react/dist/style.css";
 @import "./themes/dark.css";
 @import "./themes/light.css";
+@import "./editing.css";

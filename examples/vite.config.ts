@@ -4,18 +4,24 @@ import { defineConfig } from 'vite'
 /**
  * Vite config for the `@inkin/core` examples playground.
  *
- * Why nothing fancy: this app exists to dogfood the published surface of
- * `@inkin/core` end-to-end (consumer-side install, single CSS import, default
- * exports, types resolving). Anything Vite-specific (path aliases, asset
- * pipelines, env-var indirection) would dilute that signal.
- *
  * The `@inkin/core` dep is wired via pnpm's `workspace:*` protocol, so Vite
- * resolves it from `../dist/` after a parent-level `pnpm build` runs.
+ * resolves it from `../dist/` after a parent-level `pnpm build`.
+ *
+ * `optimizeDeps.exclude` keeps Vite from pre-bundling the workspace dep
+ * into `node_modules/.vite/deps/`. Without this, an edit-rebuild-refresh
+ * cycle would still serve the stale pre-bundle until the cache key
+ * invalidated — which is the same bug consumers don't have (they never
+ * change `@inkin/core`'s code), but which made dogfooding here painful.
+ * With it excluded, every request re-reads `../dist/index.js` directly, so
+ * `pnpm build && hard refresh` is enough — no cache flush required.
  */
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
     strictPort: false,
+  },
+  optimizeDeps: {
+    exclude: ['@inkin/core'],
   },
 })
