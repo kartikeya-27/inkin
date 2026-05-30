@@ -4,7 +4,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { useFlowSync } from '../../../src/renderer/editing/sync'
-import { InkinStoreProvider } from '../../../src/renderer/store'
+import { InkinStoreProvider, useEditorStore } from '../../../src/renderer/store'
 import type { DiagramInput } from '../../../src/schema/types'
 
 /**
@@ -310,6 +310,54 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
       } as unknown as Parameters<typeof result.current.onConnect>[0])
     })
     expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('useFlowSync — selection mirroring (xyflow → store)', () => {
+  it('forwards xyflow select changes into the SelectionSlice', () => {
+    const onChange = vi.fn()
+    // Use a wrapper that exposes the store so we can read selection state.
+    const { result } = renderHook(
+      () => {
+        const sync = useFlowSync({ value: triangle, layout: 'manual', onChange })
+        const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds)
+        return { sync, selectedNodeIds }
+      },
+      { wrapper: withStore },
+    )
+
+    expect(result.current.selectedNodeIds.size).toBe(0)
+
+    act(() => {
+      result.current.sync.onNodesChange([
+        { id: 'a', type: 'select', selected: true },
+        { id: 'b', type: 'select', selected: true },
+      ])
+    })
+
+    expect(result.current.selectedNodeIds.size).toBe(2)
+    expect(result.current.selectedNodeIds.has('a')).toBe(true)
+    expect(result.current.selectedNodeIds.has('b')).toBe(true)
+  })
+
+  it('removes ids from the store on select=false events', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => {
+        const sync = useFlowSync({ value: triangle, layout: 'manual', onChange })
+        const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds)
+        return { sync, selectedNodeIds }
+      },
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.sync.onNodesChange([{ id: 'a', type: 'select', selected: true }])
+    })
+    expect(result.current.selectedNodeIds.has('a')).toBe(true)
+    act(() => {
+      result.current.sync.onNodesChange([{ id: 'a', type: 'select', selected: false }])
+    })
+    expect(result.current.selectedNodeIds.has('a')).toBe(false)
   })
 })
 
