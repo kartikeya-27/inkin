@@ -178,10 +178,15 @@ export function EditableLabel({
     )
   }
 
+  // When the resting value is empty, render the placeholder text inside
+  // a low-opacity span so the slot remains visible (and therefore
+  // double-clickable) rather than collapsing to zero width. Empty edge
+  // labels on freshly-connected edges otherwise have no hit-target.
+  const isEmpty = value.length === 0
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: double-click is the documented affordance for inline edit; keyboard equivalent is Enter handled by the keymap (Phase 11)
     <div
-      className={cn(styles.staticLabel, className)}
+      className={cn(styles.staticLabel, isEmpty && styles.staticLabelEmpty, className)}
       onDoubleClick={handleDoubleClick}
       // Make the static label keyboard-discoverable; Phase 11's keymap will
       // wire Enter on a focused node to dispatch startEdit. tabIndex=-1
@@ -189,7 +194,7 @@ export function EditableLabel({
       // (xyflow handles Tab navigation between nodes).
       tabIndex={-1}
     >
-      {value}
+      {isEmpty ? (placeholder ?? 'label') : value}
     </div>
   )
 }

@@ -21,6 +21,14 @@
   display: inline-block;
 }
 
+/* When the resting value is empty (e.g. a freshly-drawn edge with no
+ * label yet), render the placeholder text at low opacity + italic so the
+ * slot stays discoverable without competing visually with real labels. */
+.staticLabelEmpty {
+  opacity: 0.5;
+  font-style: italic;
+}
+
 .input {
   /* Inherit font + color from the parent so the swap from <div> to <input>
    * doesn't shift typography. Border / outline are flat — the active edit

@@ -48,15 +48,35 @@ test.describe('drag-to-connect', () => {
     // hit-testing happy.
     await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
     await page.mouse.down()
-    await page.mouse.move(
-      targetBox.x + targetBox.width / 2,
-      targetBox.y + targetBox.height / 2,
-      { steps: 12 },
-    )
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, {
+      steps: 12,
+    })
     await page.mouse.up()
 
     // New edge added; exactly one onChange fired.
     await expect(page.locator('.react-flow__edge')).toHaveCount(3)
     await expect(page.getByTestId('onchange-count')).toHaveText('1')
+
+    // The new edge gets an editable empty-label slot rendered as the
+    // italic "label" placeholder. Verify the slot exists (so the user
+    // can see/click it) and that dispatching a dblclick on it opens
+    // the input. We use dispatchEvent here because in this specific
+    // a → c geometry, xyflow places the edge midpoint over node b
+    // (Sketch), which would intercept a real pixel-level dblclick —
+    // a positioning artifact unrelated to the editability fix.
+    const placeholderLabel = page.locator('div[tabindex="-1"]').filter({ hasText: 'label' }).first()
+    await expect(placeholderLabel).toBeAttached()
+    await placeholderLabel.dispatchEvent('dblclick')
+
+    const input = page.getByLabel(/^label for edge /)
+    await expect(input).toBeVisible()
+    await input.fill('reconnected')
+    await input.press('Enter')
+
+    await expect(input).not.toBeVisible()
+    await expect(
+      page.locator('div[tabindex="-1"]').filter({ hasText: 'reconnected' }).first(),
+    ).toBeVisible()
+    await expect(page.getByTestId('onchange-count')).toHaveText('2')
   })
 })

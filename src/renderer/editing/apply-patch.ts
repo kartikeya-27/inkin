@@ -105,10 +105,16 @@ function pickConnectEdgeId(diagram: Diagram, from: string, to: string): string |
 
 function applyConnectEdge(diagram: Diagram, patch: ConnectEdgePatch): Diagram {
   const id = pickConnectEdgeId(diagram, patch.from, patch.to)
+  // Seed `label: ''` so the new edge renders an editable empty slot in the
+  // canvas immediately — without this, LabeledEdge wouldn't render any
+  // label DOM (its slot only appears when `label !== undefined`), so the
+  // user couldn't double-click to name a freshly-drawn connection. The
+  // empty string round-trips through the schema cleanly (zod's `Edge.label`
+  // is `z.string().optional()`; `''` is a valid string).
   const next: Edge =
     id === undefined
-      ? { from: patch.from, to: patch.to, style: 'solid' }
-      : { id, from: patch.from, to: patch.to, style: 'solid' }
+      ? { from: patch.from, to: patch.to, style: 'solid', label: '' }
+      : { id, from: patch.from, to: patch.to, style: 'solid', label: '' }
   return { ...diagram, edges: [...diagram.edges, next] }
 }
 
