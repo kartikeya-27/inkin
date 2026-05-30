@@ -17,6 +17,14 @@ function withStore({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Flush pending microtasks. `useFlowSync` batches patch dispatches via
+ * `queueMicrotask` so `onChange` fires once per tick — tests that assert
+ * synchronously after `act(() => dispatch())` need to await this before
+ * inspecting `onChange.mock.calls`.
+ */
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+/**
  * Phase 5 (read path) tests for `useFlowSync`.
  *
  * Strategy: mount the hook with @testing-library's `renderHook` (JSDOM
@@ -199,7 +207,7 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('calls onChange exactly once with the new absolute position on drag-end', () => {
+  it('calls onChange exactly once with the new absolute position on drag-end', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -210,13 +218,14 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
         { id: 'a', type: 'position', position: { x: 250, y: 175 }, dragging: false },
       ])
     })
+    await flush()
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]?.[0]
     const a = next.nodes.find((n: { id: string }) => n.id === 'a')
     expect(a?.position).toEqual({ x: 250, y: 175 })
   })
 
-  it('mid-drag updates followed by drag-end produces a single onChange', () => {
+  it('mid-drag updates followed by drag-end produces a single onChange', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -233,13 +242,14 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
         { id: 'a', type: 'position', position: { x: 150, y: 175 }, dragging: false },
       ])
     })
+    await flush()
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange.mock.calls[0]?.[0].nodes[0]?.position).toEqual({ x: 150, y: 175 })
   })
 })
 
 describe('useFlowSync — write path: deletion dispatch', () => {
-  it('dispatches DeleteNode (with cascade) on a remove change in onNodesChange', () => {
+  it('dispatches DeleteNode (with cascade) on a remove change in onNodesChange', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -248,6 +258,7 @@ describe('useFlowSync — write path: deletion dispatch', () => {
     act(() => {
       result.current.onNodesChange([{ id: 'b', type: 'remove' }])
     })
+    await flush()
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]?.[0]
     expect(next.nodes.map((n: { id: string }) => n.id)).toEqual(['a', 'c'])
@@ -255,7 +266,7 @@ describe('useFlowSync — write path: deletion dispatch', () => {
     expect(next.edges).toHaveLength(0)
   })
 
-  it('dispatches DeleteEdge on a remove change in onEdgesChange', () => {
+  it('dispatches DeleteEdge on a remove change in onEdgesChange', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -264,6 +275,7 @@ describe('useFlowSync — write path: deletion dispatch', () => {
     act(() => {
       result.current.onEdgesChange([{ id: 'a->b', type: 'remove' }])
     })
+    await flush()
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]?.[0]
     // onChange receives the schema `Diagram` (with `from`/`to`), not xyflow.
@@ -287,7 +299,7 @@ describe('useFlowSync — write path: deletion dispatch', () => {
 })
 
 describe('useFlowSync — write path: ConnectEdge dispatch', () => {
-  it('dispatches ConnectEdge on onConnect with implicit id when free', () => {
+  it('dispatches ConnectEdge on onConnect with implicit id when free', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -301,6 +313,7 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
         targetHandle: null,
       })
     })
+    await flush()
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]?.[0]
     const added = next.edges.find(
@@ -310,7 +323,7 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
     expect(added.id).toBeUndefined()
   })
 
-  it('auto-generates an explicit id when the auto-derived form would collide', () => {
+  it('auto-generates an explicit id when the auto-derived form would collide', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -324,6 +337,7 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
         targetHandle: null,
       })
     })
+    await flush()
     const next = onChange.mock.calls[0]?.[0]
     expect(next.edges.at(-1)?.id).toBe('a->b#2')
   })
@@ -398,7 +412,7 @@ describe('useFlowSync — selection mirroring (xyflow → store)', () => {
 })
 
 describe('useFlowSync — write path: schema isolation between handlers', () => {
-  it('back-to-back patches in one tick compound against the latest parsed diagram', () => {
+  it('back-to-back patches in one tick compound into a single onChange', async () => {
     const onChange = vi.fn()
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
@@ -409,14 +423,15 @@ describe('useFlowSync — write path: schema isolation between handlers', () => 
       result.current.onNodesChange([
         { id: 'a', type: 'position', position: { x: 99, y: 99 }, dragging: false },
       ])
-      // Second patch in the same tick: DeleteNode 'b'. Must build on the
-      // updated diagram from the first patch (not on the original `value`)
-      // so 'a' keeps its new position and the cascade still removes 'b's
-      // edges.
+      // Second patch in the same tick: DeleteNode 'b'. Both patches go
+      // through the microtask-batched dispatcher and produce ONE onChange
+      // with the cumulative state — 'a' moved AND 'b' (plus incident
+      // edges) removed.
       result.current.onNodesChange([{ id: 'b', type: 'remove' }])
     })
-    expect(onChange).toHaveBeenCalledTimes(2)
-    const final = onChange.mock.calls[1]?.[0]
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const final = onChange.mock.calls[0]?.[0]
     const a = final.nodes.find((n: { id: string }) => n.id === 'a')
     expect(a?.position).toEqual({ x: 99, y: 99 })
     expect(final.edges).toHaveLength(0)
@@ -434,7 +449,11 @@ describe('useFlowSync — write path: defense-in-depth', () => {
     // Use a diagram where deleting 'a' leaves an edge dangling — but our
     // reducer cascades correctly, so we can't trigger the safeParse trap
     // from outside. Skip the actual trigger; just verify the surface
-    // exists by deleting a non-existent node (reducer no-ops, no onChange).
+    // exists by deleting a non-existent node — the reducer returns the
+    // input by reference, and the dispatcher's no-op short-circuit
+    // suppresses onChange. Confirms that orphan-cascade events
+    // (xyflow's auto-cleanup of edges after a node is deleted) don't
+    // produce N+1 redundant onChange calls.
     const { result } = renderHook(
       () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
       { wrapper: withStore },
@@ -442,13 +461,39 @@ describe('useFlowSync — write path: defense-in-depth', () => {
     act(() => {
       result.current.onNodesChange([{ id: 'ghost', type: 'remove' }])
     })
-    // Delete of unknown node is a reducer no-op → onChange should still
-    // fire (the reducer returns the SAME Diagram, which validates), but
-    // the diagram is identical. This documents that the dispatcher is
-    // permissive about no-op patches.
-    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).not.toHaveBeenCalled()
     expect(errorSpy).not.toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+})
+
+describe('useFlowSync — no-op short-circuit', () => {
+  it('does not fire onChange when MoveNode lands at the same position', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    // Node 'a' starts at { x: 0, y: 0 }. A position change at the same
+    // coords (e.g. xyflow's click-without-drag) should NOT escape.
+    act(() => {
+      result.current.onNodesChange([
+        { id: 'a', type: 'position', position: { x: 0, y: 0 }, dragging: false },
+      ])
+    })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('does not fire onChange when DeleteEdge targets an already-removed edge', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.onEdgesChange([{ id: 'ghost-edge', type: 'remove' }])
+    })
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
 

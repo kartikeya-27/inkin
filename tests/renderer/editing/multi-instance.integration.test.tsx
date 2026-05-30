@@ -32,7 +32,7 @@ const diagram: Diagram = {
 }
 
 describe('two-instance editing isolation', () => {
-  it("inline edit in instance A fires only A's onChange, not B's", () => {
+  it("inline edit in instance A fires only A's onChange, not B's", async () => {
     const onChangeA = vi.fn()
     const onChangeB = vi.fn()
     const { container } = render(
@@ -67,6 +67,9 @@ describe('two-instance editing isolation', () => {
 
     fireEvent.change(inputInA, { target: { value: 'Renamed-in-A' } })
     fireEvent.keyDown(inputInA, { key: 'Enter' })
+
+    // Microtask flush — useFlowSync batches dispatches before onChange.
+    await new Promise((r) => setTimeout(r, 0))
 
     expect(onChangeA).toHaveBeenCalledTimes(1)
     expect(onChangeA.mock.calls[0]?.[0].nodes[0]?.label).toBe('Renamed-in-A')

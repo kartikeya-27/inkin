@@ -131,20 +131,25 @@ export function App() {
 function EditablePlaygroundShell({ theme }: { readonly theme: InkinThemeName }) {
   const [diagram, setDiagram] = useState<DiagramInput>(initialEditable)
   const [lastAction, setLastAction] = useState<string>('—')
+  const [onChangeCount, setOnChangeCount] = useState<number>(0)
 
   const handleChange = useCallback((next: Diagram) => {
     setDiagram(next)
     setLastAction(summarizeDiagram(next))
+    setOnChangeCount((c) => c + 1)
   }, [])
 
   const reset = useCallback(() => {
     setDiagram(initialEditable)
     setLastAction('reset to initial sample')
+    setOnChangeCount(0)
   }, [])
 
   return (
     <>
       <div
+        data-testid="editable-status"
+        data-onchange-count={onChangeCount}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -158,6 +163,10 @@ function EditablePlaygroundShell({ theme }: { readonly theme: InkinThemeName }) 
         <span>
           <strong>{diagram.nodes.length}</strong> nodes,{' '}
           <strong>{diagram.edges.length}</strong> edges
+        </span>
+        <span>
+          onChange fired <strong data-testid="onchange-count">{onChangeCount}</strong>
+          {onChangeCount === 1 ? ' time' : ' times'}
         </span>
         <span style={{ marginLeft: 'auto' }}>
           Last action: <code>{lastAction}</code>

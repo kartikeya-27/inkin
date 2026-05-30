@@ -230,36 +230,60 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
 
   // --- Patch dispatcher ---------------------------------------------------
 
-  /**
-   * Apply a patch against the latest-known parsed diagram, re-validate the
-   * result (defense in depth), and escape to the consumer's `onChange` only
-   * if validation succeeds. The dispatcher is intentionally synchronous —
-   * a single user event produces a single onChange call.
-   */
+  // Microtask-batched patch dispatch.
+  //
+  // Why batched: xyflow can fire several change events for ONE user action
+  // and split them across `onEdgesChange` + `onNodesChange`. Deleting a
+  // single node triggers (in order) `onEdgesChange` with the orphan-edge
+  // removes, then `onNodesChange` with the node remove — three patches for
+  // one keystroke. Dispatching each one synchronously would emit three
+  // `onChange` calls, none of which are the *final* schema state.
+  //
+  // Batching collects every patch within the current microtask tick,
+  // applies them in order against the latest parsed snapshot, and emits
+  // exactly one `onChange` with the final result. Single-patch flows
+  // (drag-end, connect, inline-edit commit) still emit one `onChange` —
+  // microtasks flush after the current event handler returns, so the user
+  // never perceives a delay.
+  const pendingPatchesRef = useRef<Patch[]>([])
+  const flushScheduledRef = useRef(false)
+
   const dispatchPatch = useCallback((patch: Patch): void => {
-    const parsed = parsedRef.current
-    if (parsed === null) {
-      // No schema to mutate (current value is unparseable). Drop the patch
-      // silently — xyflow shouldn't be firing schema-mutating events when
-      // the canvas isn't rendered, but a stray event during the transition
-      // would land here.
-      return
-    }
+    pendingPatchesRef.current.push(patch)
+    if (flushScheduledRef.current) return
+    flushScheduledRef.current = true
 
-    const next = applyPatch(parsed, patch)
-    const validation = safeParse(next)
-    if (!validation.success) {
-      console.error(
-        '[inkin] internal reducer produced an invalid Diagram; onChange suppressed. Patch:',
-        patch,
-        'issues:',
-        validation.error.issues,
-      )
-      return
-    }
+    queueMicrotask(() => {
+      flushScheduledRef.current = false
+      const patches = pendingPatchesRef.current
+      pendingPatchesRef.current = []
 
-    parsedRef.current = validation.data
-    onChangeRef.current?.(validation.data)
+      const start = parsedRef.current
+      if (start === null) return // no schema to mutate
+
+      let current = start
+      for (const p of patches) {
+        const after = applyPatch(current, p)
+        current = after
+      }
+
+      // No net change across the whole batch → skip onChange entirely.
+      if (current === start) return
+
+      const validation = safeParse(current)
+      if (!validation.success) {
+        console.error(
+          '[inkin] internal reducer produced an invalid Diagram; onChange suppressed. Patches:',
+          patches,
+          'issues:',
+          validation.error.issues,
+        )
+        return
+      }
+
+      parsedRef.current = validation.data
+      onChangeRef.current?.(validation.data)
+    })
   }, [])
 
   // --- Change handlers ----------------------------------------------------

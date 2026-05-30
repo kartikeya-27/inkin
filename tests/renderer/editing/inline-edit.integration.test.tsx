@@ -38,7 +38,7 @@ const simple: Diagram = {
 }
 
 describe('inline-edit integration — node label', () => {
-  it('double-click → type → Enter commits a SetField patch via onChange', () => {
+  it('double-click → type → Enter commits a SetField patch via onChange', async () => {
     const onChange = vi.fn()
     const { container } = render(
       <DiagramStudio value={simple} onChange={onChange} layout="manual" />,
@@ -67,6 +67,9 @@ describe('inline-edit integration — node label', () => {
 
     // Enter commits.
     fireEvent.keyDown(input, { key: 'Enter' })
+
+    // Microtask flush — useFlowSync batches patches before calling onChange.
+    await new Promise((r) => setTimeout(r, 0))
 
     // onChange called with the updated schema.
     expect(onChange).toHaveBeenCalledTimes(1)

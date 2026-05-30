@@ -57,6 +57,17 @@ export function applyPatch(diagram: Diagram, patch: Patch): Diagram {
 // --- MoveNode ----------------------------------------------------------------
 
 function applyMoveNode(diagram: Diagram, patch: MoveNodePatch): Diagram {
+  // No-op when the target node doesn't exist or the position is unchanged.
+  // The latter case is reached on click-without-drag (xyflow fires a
+  // `position` event with `dragging: false` at the current position),
+  // which we'd otherwise turn into a spurious onChange.
+  const target = diagram.nodes.find((node) => node.id === patch.nodeId)
+  if (target === undefined) return diagram
+  const current = target.position
+  if (current !== undefined && current.x === patch.position.x && current.y === patch.position.y) {
+    return diagram
+  }
+
   const nodes = diagram.nodes.map<Node>((node) =>
     node.id === patch.nodeId
       ? { ...node, position: { x: patch.position.x, y: patch.position.y } }
