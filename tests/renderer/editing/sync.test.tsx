@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { useFlowSync } from '../../../src/renderer/editing/sync'
 import { InkinStoreProvider, useEditorStore } from '../../../src/renderer/store'
@@ -13,7 +12,7 @@ import type { DiagramInput } from '../../../src/schema/types'
  * InkinStoreProvider in its ancestry. Apply this wrapper to every
  * renderHook call.
  */
-function withStore({ children }: { children: ReactNode }) {
+function withStore({ children }: { children: React.ReactNode }) {
   return <InkinStoreProvider>{children}</InkinStoreProvider>
 }
 
@@ -59,7 +58,9 @@ const invalid = {
 
 describe('useFlowSync — read path: initial state', () => {
   it('exposes parsed nodes + edges on mount when value is valid', () => {
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), { wrapper: withStore })
+    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     expect(result.current.nodes).toHaveLength(3)
     expect(result.current.edges).toHaveLength(2)
     expect(result.current.parsedDiagram).not.toBeNull()
@@ -67,7 +68,9 @@ describe('useFlowSync — read path: initial state', () => {
   })
 
   it('reports parseError and empty arrays when value is invalid', () => {
-    const { result } = renderHook(() => useFlowSync({ value: invalid, layout: 'manual' }), { wrapper: withStore })
+    const { result } = renderHook(() => useFlowSync({ value: invalid, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     expect(result.current.nodes).toEqual([])
     expect(result.current.edges).toEqual([])
     expect(result.current.parsedDiagram).toBeNull()
@@ -76,7 +79,9 @@ describe('useFlowSync — read path: initial state', () => {
   })
 
   it('isEditable reflects whether onChange was provided', () => {
-    const readOnly = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), { wrapper: withStore })
+    const readOnly = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     expect(readOnly.result.current.isEditable).toBe(false)
 
     const editable = renderHook(
@@ -87,7 +92,9 @@ describe('useFlowSync — read path: initial state', () => {
   })
 
   it('exposes the four xyflow change handlers as functions', () => {
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), { wrapper: withStore })
+    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     expect(typeof result.current.onNodesChange).toBe('function')
     expect(typeof result.current.onEdgesChange).toBe('function')
     expect(typeof result.current.onConnect).toBe('function')
@@ -147,7 +154,9 @@ describe('useFlowSync — read path: re-seeds on external value change', () => {
 
 describe('useFlowSync — read-only: handlers stay quiet without onChange', () => {
   it('onNodesChange does not call any callback (no onChange supplied)', () => {
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), { wrapper: withStore })
+    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     // Just exercise without asserting onChange — there's no callback to call.
     act(() => {
       result.current.onNodesChange([
@@ -158,7 +167,9 @@ describe('useFlowSync — read-only: handlers stay quiet without onChange', () =
   })
 
   it('onConnect is a complete no-op in read-only mode', () => {
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), { wrapper: withStore })
+    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     const edgesBefore = result.current.edges.length
     act(() => {
       result.current.onConnect({
@@ -176,7 +187,10 @@ describe('useFlowSync — read-only: handlers stay quiet without onChange', () =
 describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
   it('does NOT call onChange during a drag (dragging: true)', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onNodesChange([
         { id: 'a', type: 'position', position: { x: 50, y: 50 }, dragging: true },
@@ -187,7 +201,10 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
 
   it('calls onChange exactly once with the new absolute position on drag-end', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onNodesChange([
         { id: 'a', type: 'position', position: { x: 250, y: 175 }, dragging: false },
@@ -201,7 +218,10 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
 
   it('mid-drag updates followed by drag-end produces a single onChange', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onNodesChange([
         { id: 'a', type: 'position', position: { x: 50, y: 50 }, dragging: true },
@@ -221,7 +241,10 @@ describe('useFlowSync — write path: MoveNode dispatch on drag-end', () => {
 describe('useFlowSync — write path: deletion dispatch', () => {
   it('dispatches DeleteNode (with cascade) on a remove change in onNodesChange', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onNodesChange([{ id: 'b', type: 'remove' }])
     })
@@ -234,7 +257,10 @@ describe('useFlowSync — write path: deletion dispatch', () => {
 
   it('dispatches DeleteEdge on a remove change in onEdgesChange', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onEdgesChange([{ id: 'a->b', type: 'remove' }])
     })
@@ -248,11 +274,12 @@ describe('useFlowSync — write path: deletion dispatch', () => {
 
   it('onNodesDelete and onEdgesDelete are intentional no-ops (deletion lives on the change events)', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
-      result.current.onNodesDelete([
-        { id: 'a', position: { x: 0, y: 0 }, data: {} } as never,
-      ])
+      result.current.onNodesDelete([{ id: 'a', position: { x: 0, y: 0 }, data: {} } as never])
       result.current.onEdgesDelete([{ id: 'a->b', source: 'a', target: 'b' } as never])
     })
     expect(onChange).not.toHaveBeenCalled()
@@ -262,7 +289,10 @@ describe('useFlowSync — write path: deletion dispatch', () => {
 describe('useFlowSync — write path: ConnectEdge dispatch', () => {
   it('dispatches ConnectEdge on onConnect with implicit id when free', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onConnect({
         source: 'a',
@@ -282,7 +312,10 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
 
   it('auto-generates an explicit id when the auto-derived form would collide', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onConnect({
         source: 'a',
@@ -297,7 +330,10 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
 
   it('drops a connect with missing source / target without crashing', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       // xyflow's `Connection` type marks source/target as `string`, but
       // mid-drag states with no snapped handle produce null at runtime —
@@ -364,7 +400,10 @@ describe('useFlowSync — selection mirroring (xyflow → store)', () => {
 describe('useFlowSync — write path: schema isolation between handlers', () => {
   it('back-to-back patches in one tick compound against the latest parsed diagram', () => {
     const onChange = vi.fn()
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       // First patch: MoveNode for 'a'.
       result.current.onNodesChange([
@@ -396,7 +435,10 @@ describe('useFlowSync — write path: defense-in-depth', () => {
     // reducer cascades correctly, so we can't trigger the safeParse trap
     // from outside. Skip the actual trigger; just verify the surface
     // exists by deleting a non-existent node (reducer no-ops, no onChange).
-    const { result } = renderHook(() => useFlowSync({ value: triangle, layout: 'manual', onChange }), { wrapper: withStore })
+    const { result } = renderHook(
+      () => useFlowSync({ value: triangle, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
     act(() => {
       result.current.onNodesChange([{ id: 'ghost', type: 'remove' }])
     })
@@ -421,7 +463,9 @@ describe('useFlowSync — read path: dagre auto-layout', () => {
       edges: [{ from: 'a', to: 'b' }],
     }
 
-    const auto = renderHook(() => useFlowSync({ value: unpositioned, layout: 'auto' }), { wrapper: withStore })
+    const auto = renderHook(() => useFlowSync({ value: unpositioned, layout: 'auto' }), {
+      wrapper: withStore,
+    })
     const a = auto.result.current.nodes.find((n) => n.id === 'a')
     const b = auto.result.current.nodes.find((n) => n.id === 'b')
     // Dagre assigns deterministic non-(0,0) coordinates.
@@ -431,11 +475,10 @@ describe('useFlowSync — read path: dagre auto-layout', () => {
     // Wrap the console.warn that the renderer emits for unpositioned nodes
     // under manual layout so it doesn't noise up test output.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const manual = renderHook(() => useFlowSync({ value: unpositioned, layout: 'manual' }), { wrapper: withStore })
+    const manual = renderHook(() => useFlowSync({ value: unpositioned, layout: 'manual' }), {
+      wrapper: withStore,
+    })
     expect(manual.result.current.nodes.find((n) => n.id === 'a')?.position).toEqual({ x: 0, y: 0 })
     warn.mockRestore()
   })
 })
-
-// Quiet TS6133 for the unused JSX runtime import the JSDOM directive pulls in.
-export type _Touch = ReactNode

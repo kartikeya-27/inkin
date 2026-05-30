@@ -62,16 +62,16 @@ class DOMMatrixStub {
 
 const globalAny = globalThis as unknown as Record<string, unknown>
 
-if (typeof globalAny['ResizeObserver'] === 'undefined') {
-  globalAny['ResizeObserver'] = ResizeObserverStub
+if (typeof globalAny.ResizeObserver === 'undefined') {
+  globalAny.ResizeObserver = ResizeObserverStub
 }
 
-if (typeof globalAny['DOMMatrix'] === 'undefined') {
-  globalAny['DOMMatrix'] = DOMMatrixStub
+if (typeof globalAny.DOMMatrix === 'undefined') {
+  globalAny.DOMMatrix = DOMMatrixStub
 }
 
-if (typeof globalAny['window'] !== 'undefined') {
-  const elementProto = (globalAny['Element'] as { prototype: { scrollTo?: () => void } }).prototype
+if (typeof globalAny.window !== 'undefined') {
+  const elementProto = (globalAny.Element as { prototype: { scrollTo?: () => void } }).prototype
   if (typeof elementProto.scrollTo !== 'function') {
     elementProto.scrollTo = () => {}
   }

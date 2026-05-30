@@ -76,9 +76,7 @@ export function BaseNode({ id, data, selected, className }: BaseNodeProps) {
   )
   // Pull draftText only when this node has an active edit; otherwise we
   // subscribe to an unused value just to avoid a conditional hook call.
-  const draftText = useEditorStore((s) =>
-    isEditingLabel || isEditingSublabel ? s.draftText : '',
-  )
+  const draftText = useEditorStore((s) => (isEditingLabel || isEditingSublabel ? s.draftText : ''))
 
   return (
     <div className={cn(styles.root, selected && styles.selected, className)}>

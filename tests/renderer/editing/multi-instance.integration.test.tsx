@@ -32,7 +32,7 @@ const diagram: Diagram = {
 }
 
 describe('two-instance editing isolation', () => {
-  it('inline edit in instance A fires only A\'s onChange, not B\'s', () => {
+  it("inline edit in instance A fires only A's onChange, not B's", () => {
     const onChangeA = vi.fn()
     const onChangeB = vi.fn()
     const { container } = render(

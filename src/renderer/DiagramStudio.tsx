@@ -144,7 +144,11 @@ function DiagramStudioInner({
   // read-only mode); useKeymap's `enabled` flag short-circuits the
   // attach.
   const nudgeNode = useMemo(
-    () => buildArrowKeyNudger({ parsedDiagram: sync.parsedDiagram, dispatchMoveNode: sync.dispatchMoveNode }),
+    () =>
+      buildArrowKeyNudger({
+        parsedDiagram: sync.parsedDiagram,
+        dispatchMoveNode: sync.dispatchMoveNode,
+      }),
     [sync.parsedDiagram, sync.dispatchMoveNode],
   )
 

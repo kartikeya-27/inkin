@@ -11,7 +11,9 @@
   stroke: var(--inkin-edge-stroke);
   stroke-width: 1.5px;
   fill: none;
-  transition: stroke 120ms ease-out, stroke-width 120ms ease-out;
+  transition:
+    stroke 120ms ease-out,
+    stroke-width 120ms ease-out;
 }
 
 .dashed {

@@ -401,8 +401,7 @@ describe('xyflowPositionToAbsolute() — reverse of translate()s position conver
       expect(xyNode).toBeDefined()
       if (xyNode === undefined) continue
 
-      const parent =
-        xyNode.parentId !== undefined ? clustersById.get(xyNode.parentId) : undefined
+      const parent = xyNode.parentId !== undefined ? clustersById.get(xyNode.parentId) : undefined
       const recovered = xyflowPositionToAbsolute(xyNode.position, parent?.position)
       const expected = original.position ?? { x: 0, y: 0 }
 

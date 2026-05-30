@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyPatch, effectiveEdgeId, pickConnectEdgeId } from '../../../src/renderer/editing'
 import type { Patch } from '../../../src/renderer/editing'
+import { applyPatch, effectiveEdgeId, pickConnectEdgeId } from '../../../src/renderer/editing'
 import { parse } from '../../../src/schema'
 import type { Diagram } from '../../../src/schema/types'
 

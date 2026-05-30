@@ -179,6 +179,7 @@ export function EditableLabel({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: double-click is the documented affordance for inline edit; keyboard equivalent is Enter handled by the keymap (Phase 11)
     <div
       className={cn(styles.staticLabel, className)}
       onDoubleClick={handleDoubleClick}

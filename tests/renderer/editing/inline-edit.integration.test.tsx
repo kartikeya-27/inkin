@@ -40,7 +40,9 @@ const simple: Diagram = {
 describe('inline-edit integration — node label', () => {
   it('double-click → type → Enter commits a SetField patch via onChange', () => {
     const onChange = vi.fn()
-    const { container } = render(<DiagramStudio value={simple} onChange={onChange} layout="manual" />)
+    const { container } = render(
+      <DiagramStudio value={simple} onChange={onChange} layout="manual" />,
+    )
 
     // EditableLabel wraps the node label. Find the static label by its text.
     // In the resting state it's a <div tabindex="-1">{label}</div>.
@@ -75,7 +77,9 @@ describe('inline-edit integration — node label', () => {
 
   it('Esc cancels: no onChange, the input swaps back to the original label', () => {
     const onChange = vi.fn()
-    const { container } = render(<DiagramStudio value={simple} onChange={onChange} layout="manual" />)
+    const { container } = render(
+      <DiagramStudio value={simple} onChange={onChange} layout="manual" />,
+    )
 
     const nodeLabelDiv = Array.from(container.querySelectorAll('div')).find(
       (d) => d.textContent === 'Hello' && d.getAttribute('tabindex') === '-1',
@@ -83,9 +87,9 @@ describe('inline-edit integration — node label', () => {
     if (nodeLabelDiv === undefined) throw new Error('label not found')
     fireEvent.doubleClick(nodeLabelDiv)
 
-    const input = container.querySelector('input[aria-label="label for node a"]') as
-      | HTMLInputElement
-      | null
+    const input = container.querySelector(
+      'input[aria-label="label for node a"]',
+    ) as HTMLInputElement | null
     if (input === null) throw new Error('input not found')
     fireEvent.change(input, { target: { value: 'Discarded' } })
     fireEvent.keyDown(input, { key: 'Escape' })

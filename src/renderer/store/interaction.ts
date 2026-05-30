@@ -1,5 +1,4 @@
 import type { StateCreator } from 'zustand'
-// biome-ignore lint/correctness/noUnusedImports: type-only ref completes the slices-pattern triangle (interaction.ts ↔ index.tsx).
 import type { EditorStore } from './index'
 
 /**
@@ -23,4 +22,9 @@ import type { EditorStore } from './index'
 // signature that breaks intersections with the real slices).
 export type InteractionSlice = Record<never, never>
 
-export const createInteractionSlice: StateCreator<EditorStore, [], [], InteractionSlice> = () => ({})
+export const createInteractionSlice: StateCreator<
+  EditorStore,
+  [],
+  [],
+  InteractionSlice
+> = () => ({})

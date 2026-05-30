@@ -1,5 +1,4 @@
 import type { StateCreator } from 'zustand'
-// biome-ignore lint/correctness/noUnusedImports: type-only ref completes the slices-pattern triangle (edit.ts ↔ index.tsx).
 import type { EditorStore } from './index'
 
 /**

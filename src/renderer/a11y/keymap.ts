@@ -178,6 +178,6 @@ function activeElementNodeId(): string | null {
   return id !== null && id.length > 0 ? id : null
 }
 
+export type { EditorStoreInstance }
 // Re-exported for the keymap test + DiagramStudio wiring.
 export { NUDGE_STEP }
-export type { EditorStoreInstance }

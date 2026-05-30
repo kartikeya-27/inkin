@@ -1,5 +1,4 @@
 import type { StateCreator } from 'zustand'
-// biome-ignore lint/correctness/noUnusedImports: type-only ref completes the slices-pattern triangle (selection.ts ↔ index.tsx).
 import type { EditorStore } from './index'
 
 /**
@@ -120,10 +119,7 @@ export const createSelectionSlice: StateCreator<EditorStore, [], [], SelectionSl
     if (next.edges !== undefined && !selectionEquals(next.edges, state.selectedEdgeIds)) {
       updates.selectedEdgeIds = next.edges
     }
-    if (
-      next.clusters !== undefined &&
-      !selectionEquals(next.clusters, state.selectedClusterIds)
-    ) {
+    if (next.clusters !== undefined && !selectionEquals(next.clusters, state.selectedClusterIds)) {
       updates.selectedClusterIds = next.clusters
     }
     if (hasAnyUpdate(updates)) set(updates)

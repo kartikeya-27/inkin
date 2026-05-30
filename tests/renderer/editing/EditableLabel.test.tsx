@@ -199,9 +199,7 @@ describe('<EditableLabel> — commit semantics', () => {
 describe('<EditableLabel> — accessibility surface', () => {
   it('sets aria-label on the input', () => {
     const { container } = setup({ isEditing: true, ariaLabel: 'node label for a' })
-    expect(container.querySelector('input')?.getAttribute('aria-label')).toBe(
-      'node label for a',
-    )
+    expect(container.querySelector('input')?.getAttribute('aria-label')).toBe('node label for a')
   })
 
   it('makes the static label programmatically focusable (tabIndex=-1)', () => {

@@ -21,14 +21,11 @@
  */
 
 import { act, cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useRef } from 'react'
-import { useKeymap, NUDGE_STEP } from '../../../src/renderer/a11y/keymap'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { NUDGE_STEP, useKeymap } from '../../../src/renderer/a11y/keymap'
 import { EditingProvider } from '../../../src/renderer/editing/EditingContext'
-import {
-  InkinStoreProvider,
-  useEditorStoreApi,
-} from '../../../src/renderer/store'
+import { InkinStoreProvider, useEditorStoreApi } from '../../../src/renderer/store'
 
 afterEach(() => {
   cleanup()
@@ -63,6 +60,7 @@ function Harness({
           dispatchMoveNode={dispatchMoveNode}
         />
         <StoreExposer storeRef={storeRef} />
+        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: test fixture — the wrapper needs to receive keydown events; not a real interactive control */}
         <div ref={wrapperRef} data-testid="wrapper" tabIndex={0} />
       </EditingProvider>
     </InkinStoreProvider>
@@ -158,9 +156,7 @@ describe('useKeymap — arrow keys', () => {
 describe('useKeymap — Enter on focused node', () => {
   it('dispatches startEdit with kind=node-label for the data-id of the focused element', () => {
     const ref = mkRef()
-    const { getByTestId, container } = render(
-      <Harness storeRef={(api) => (ref.api = api)} />,
-    )
+    const { getByTestId, container } = render(<Harness storeRef={(api) => (ref.api = api)} />)
 
     // Create a focusable element with data-id matching xyflow's contract.
     const nodeEl = document.createElement('div')

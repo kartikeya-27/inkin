@@ -15,8 +15,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { dagreLayout } from '../../schema/layout'
 import type { Diagram, DiagramInput } from '../../schema/types'
 import { type InkinValidationError, safeParse } from '../../schema/validate'
-import { translate, xyflowPositionToAbsolute } from '../translate'
 import { useEditorStoreApi } from '../store'
+import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
 import type { Patch, SetFieldTarget } from './patches'
 
@@ -155,15 +155,13 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
   // First render — compute initial xyflow state and parsed diagram in one shot.
   // useState's lazy initializer runs exactly once, dodging the re-translate
   // that a useMemo would cause when React's reference equality is conservative.
-  const initial = useMemo(
-    () => computeTranslated(value, layout),
-    // We intentionally only compute the initial snapshot once on mount; the
-    // useEffect below handles every subsequent external change. Using stable
-    // empty deps here keeps the initial state honest to the first-render value
-    // and avoids double-applying the same update.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: stable on-mount initializer; updates are handled by the useEffect below
-    [],
-  )
+  //
+  // We intentionally only compute the initial snapshot once on mount; the
+  // useEffect below handles every subsequent external change. Using stable
+  // empty deps here keeps the initial state honest to the first-render value
+  // and avoids double-applying the same update.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: stable on-mount initializer; updates are handled by the useEffect below
+  const initial = useMemo(() => computeTranslated(value, layout), [])
 
   // We don't use xyflow's bundled `onNodesChange` / `onEdgesChange` directly —
   // our wrapped versions below intercept changes for the write-path partition.
@@ -175,9 +173,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
   // patch (so back-to-back patches inside a single React tick compound
   // correctly without waiting for the consumer's value cycle).
   const parsedRef = useRef<Diagram | null>(initial.ok ? initial.diagram : null)
-  const parseErrorRef = useRef<InkinValidationError | null>(
-    initial.ok ? null : initial.error,
-  )
+  const parseErrorRef = useRef<InkinValidationError | null>(initial.ok ? null : initial.error)
 
   // Track the inputs that drove `parsedRef`/`parseErrorRef` so the read-path
   // effect below can detect a real external change vs a re-render with the
@@ -304,9 +300,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
           const xyNodes = nodesRef.current
           const node = xyNodes.find((n) => n.id === change.id)
           if (node === undefined) continue
-          const parent = node.parentId
-            ? xyNodes.find((n) => n.id === node.parentId)
-            : undefined
+          const parent = node.parentId ? xyNodes.find((n) => n.id === node.parentId) : undefined
           const absolute = xyflowPositionToAbsolute(change.position, parent?.position)
           dispatchPatch({ kind: 'MoveNode', nodeId: change.id, position: absolute })
         } else if (change.type === 'remove') {

@@ -58,7 +58,9 @@ export function applyPatch(diagram: Diagram, patch: Patch): Diagram {
 
 function applyMoveNode(diagram: Diagram, patch: MoveNodePatch): Diagram {
   const nodes = diagram.nodes.map<Node>((node) =>
-    node.id === patch.nodeId ? { ...node, position: { x: patch.position.x, y: patch.position.y } } : node,
+    node.id === patch.nodeId
+      ? { ...node, position: { x: patch.position.x, y: patch.position.y } }
+      : node,
   )
   return { ...diagram, nodes }
 }
@@ -219,8 +221,7 @@ function applySetField(diagram: Diagram, patch: SetFieldPatch): Diagram {
   }
 }
 
-// Exported for tests + sync hook. Pure helpers, no state.
-export { effectiveEdgeId, pickConnectEdgeId, pruneFlows }
-
 // Re-export shared types so tests don't need a parallel import path.
 export type { Cluster, Edge, Flow, Node }
+// Exported for tests + sync hook. Pure helpers, no state.
+export { effectiveEdgeId, pickConnectEdgeId, pruneFlows }

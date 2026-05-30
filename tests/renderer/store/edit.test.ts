@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInkinStore } from '../../../src/renderer/store'
-import {
-  editTargetEquals,
-  type EditTarget,
-} from '../../../src/renderer/store/edit'
+import { type EditTarget, editTargetEquals } from '../../../src/renderer/store/edit'
 
 /**
  * EditSlice unit tests.

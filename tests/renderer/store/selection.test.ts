@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInkinStore } from '../../../src/renderer/store'
-import {
-  EMPTY_SELECTION,
-  selectionEquals,
-} from '../../../src/renderer/store/selection'
+import { EMPTY_SELECTION, selectionEquals } from '../../../src/renderer/store/selection'
 
 /**
  * SelectionSlice unit tests.
