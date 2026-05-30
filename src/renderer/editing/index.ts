@@ -21,3 +21,5 @@ export type {
   SetFieldPatch,
   SetFieldTarget,
 } from './patches'
+export type { UseFlowSyncOptions, UseFlowSyncResult } from './sync'
+export { useFlowSync } from './sync'
