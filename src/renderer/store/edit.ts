@@ -1,18 +1,20 @@
+import type { StateCreator } from 'zustand'
+// biome-ignore lint/correctness/noUnusedImports: type-only ref completes the slices-pattern triangle (edit.ts ↔ index.tsx).
+import type { EditorStore } from './index'
+
 /**
- * Inline-edit slice — empty in 0.2.0.
+ * Inline-edit slice — empty in this commit, filled in Phase 4.
  *
- * In 0.3.0 (editing) this will hold:
- *   - editingTarget: { kind: 'node'|'edge'|'cluster', id: string, field: 'label'|'sublabel' } | null
- *   - draftText: string
- *   - beginEdit(target), updateDraft(text), commitEdit(), cancelEdit()
- *
- * Only one inline edit can be active at a time (commit-on-blur semantics);
- * cleanly captured by a single nullable `editingTarget` rather than per-node
- * boolean flags scattered across components.
- *
- * See selection.ts for the rationale behind shipping the empty stub now.
+ * The factory adopts the `StateCreator` signature now (rather than the
+ * Phase-3-and-earlier `() => Slice` shape) so the store composition in
+ * `./index.tsx` already threads `set` / `get` / `store` through every
+ * slice. Phase 4 then implements the real state without touching the
+ * composition layer.
  */
 
-export type EditSlice = Record<string, never>
+// Truly-empty record (not `Record<string, never>`, which adds an index
+// signature that breaks intersections with the real slices). Phase 4
+// replaces this with a real interface.
+export type EditSlice = Record<never, never>
 
-export const createEditSlice = (): EditSlice => ({})
+export const createEditSlice: StateCreator<EditorStore, [], [], EditSlice> = () => ({})

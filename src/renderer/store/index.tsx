@@ -31,10 +31,10 @@ export type EditorStore = SelectionSlice & InteractionSlice & EditSlice
 export type EditorStoreInstance = ReturnType<typeof createInkinStore>
 
 export function createInkinStore() {
-  return createStore<EditorStore>(() => ({
-    ...createSelectionSlice(),
-    ...createInteractionSlice(),
-    ...createEditSlice(),
+  return createStore<EditorStore>((...args) => ({
+    ...createSelectionSlice(...args),
+    ...createInteractionSlice(...args),
+    ...createEditSlice(...args),
   }))
 }
 
