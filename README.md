@@ -35,7 +35,7 @@ import '@inkin/core/styles.css'
 
 export function Demo() {
   return (
-    <div style={{ height: 600 }}>
+    <div style={{ width: '100%', height: 600 }}>
       <DiagramStudio
         value={{
           schemaVersion: 1,
@@ -55,7 +55,7 @@ export function Demo() {
 }
 ```
 
-That's a complete read-only diagram with pan, zoom, and viewport controls. The wrapper inherits its parent's size, so size the parent — typical use is `height: 600px` or a flex/grid child.
+That's a complete read-only diagram with pan, zoom, and viewport controls. The wrapper must have explicit width *and* height — xyflow measures the parent on first mount; if either dimension reads `0` before CSS applies (common in iframes / sandboxes / flex parents without `min-width: 0`), it logs a harmless one-shot `[React Flow] error#004` warning. Setting both upfront avoids the warning. Typical sizes: `height: 600` for an embed; `width: '100vw', height: '100vh'` for a full-page canvas.
 
 ### Props
 
@@ -124,7 +124,7 @@ export function EditableDemo() {
   })
 
   return (
-    <div style={{ height: 600 }}>
+    <div style={{ width: '100%', height: 600 }}>
       <DiagramStudio
         value={diagram}
         onChange={(next: Diagram) => setDiagram(next)}
