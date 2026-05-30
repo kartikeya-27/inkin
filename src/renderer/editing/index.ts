@@ -21,5 +21,6 @@ export type {
   SetFieldPatch,
   SetFieldTarget,
 } from './patches'
+export { EditableLabel, type EditableLabelProps } from './EditableLabel'
 export type { UseFlowSyncOptions, UseFlowSyncResult } from './sync'
 export { useFlowSync } from './sync'
