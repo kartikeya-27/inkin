@@ -1,37 +1,44 @@
 'use client'
 
 import { ReactFlowProvider } from '@xyflow/react'
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
-import { dagreLayout } from '../schema/layout'
-import type { DiagramInput } from '../schema/types'
-import { safeParse } from '../schema/validate'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
+import type { Diagram, DiagramInput } from '../schema/types'
 import styles from './DiagramStudio.module.css'
+import { useFlowSync } from './editing'
 import { type ToSvgOptions, toSvg } from './export/svg'
 import { GraphRenderer } from './GraphRenderer'
 import { cn } from './lib/cn'
 import { InkinStoreProvider } from './store'
 import type { InkinThemeName } from './themes'
-import { translate } from './translate'
 
 /**
  * The public inkin React component — drop-in editable React diagrams from a
  * typed Diagram schema.
  *
- * 0.2.0: READ-ONLY renderer. Pan and zoom enabled (xyflow defaults), but no
- * drag-to-move, no edge editing, no inline label edits, no inspector, no
- * palette. Editing affordances land in 0.3.0; the API surface stays additive.
+ * **0.3.0 (this commit):** core editing. Omit `onChange` for byte-for-byte
+ * 0.2.0 read-only behavior (pan/zoom, no drag/select/connect). Provide
+ * `onChange` for editable mode: drag-to-move, drag-handle-to-connect,
+ * Delete-key cascade removal, and inline label editing (Phase 9 lands the
+ * `<EditableLabel>` primitive — this commit gates the canvas behavior on
+ * the prop). No Inspector / Palette — those land in 0.4.0.
  *
  * Composition:
  *
  *   <DiagramStudio>
  *     <wrapper data-inkin-theme="dark|light">
- *       <InkinStoreProvider>             ← Zustand store for editor-transient state (empty slices in 0.2.0)
- *         <ReactFlowProvider>            ← xyflow's required provider
- *           <GraphRenderer ... />        ← <ReactFlow nodes edges> + Background + Controls + optional MiniMap
+ *       <InkinStoreProvider>           ← Zustand: selection + inline-edit state
+ *         <ReactFlowProvider>          ← xyflow's required provider
+ *           <DiagramStudioInner>       ← calls useFlowSync, branches on parseError
  *         </ReactFlowProvider>
  *       </InkinStoreProvider>
  *     </wrapper>
  *   </DiagramStudio>
+ *
+ * The provider split (outer DiagramStudio mounts providers; inner component
+ * runs the hook) keeps Phase 11's keymap and Phase 10's EditableLabel free
+ * to call `useEditorStore` without prop-drilling. The providers are stable
+ * across renders so the wrapper div + ref-based SVG export remain mounted
+ * even when `value` parse fails.
  *
  * SSR: declared `'use client'` because xyflow accesses `window`/`document` at
  * import time. Next.js App Router consumers must dynamic-import without SSR:
@@ -41,10 +48,12 @@ import { translate } from './translate'
  *     { ssr: false },
  *   )
  *
- * Runtime validation: every render parses `value` via `safeParse()` (defensive
- * against `as Diagram` casts and AI-generated input). If validation fails, an
- * inline error panel renders the field-path-precise issues — no blank canvas,
- * no console-only failure. Cost: one zod parse per `value` reference change.
+ * Runtime validation: `useFlowSync` re-validates `value` via `safeParse()` on
+ * every reference change. If validation fails, an inline error panel renders
+ * the field-path-precise issues — no blank canvas, no console-only failure.
+ * Defense in depth: every patch produced by the editor also re-validates
+ * before `onChange` fires, so a bug in the internal reducer can't escape an
+ * invalid Diagram to the consumer.
  */
 
 export interface DiagramStudioProps {
@@ -56,6 +65,16 @@ export interface DiagramStudioProps {
    * internally on every reference change.
    */
   readonly value: DiagramInput
+  /**
+   * Editing toggle. Omit for read-only (0.2.0 behavior). Provide for
+   * editable mode — drag-to-move, drag-handle-to-connect, Delete-key
+   * removal with cascade, inline label editing all turn on. The callback
+   * receives the parsed-and-validated next `Diagram`; consumers update
+   * their state (and any persistence layer) inside this callback. The
+   * schema is the single source of truth: the editor never holds
+   * independent state.
+   */
+  readonly onChange?: (next: Diagram) => void
   /** Visual theme — reflected as `data-inkin-theme` on the wrapper. Default `'dark'`. */
   readonly theme?: InkinThemeName
   /**
@@ -82,9 +101,80 @@ export interface DiagramStudioRef {
   toSvg(options?: ToSvgOptions): Promise<string>
 }
 
+interface DiagramStudioInnerProps {
+  readonly value: DiagramInput
+  readonly layout: 'auto' | 'manual'
+  readonly minimap: boolean
+  readonly controls: boolean
+  readonly onChange?: (next: Diagram) => void
+}
+
+/**
+ * Inner component — runs `useFlowSync` (must be inside the providers from
+ * `DiagramStudio` so future phases that read the editor store via
+ * `useEditorStore` work). Branches on `parseError` to render either the
+ * canvas or the inline error panel.
+ */
+function DiagramStudioInner({
+  value,
+  layout,
+  minimap,
+  controls,
+  onChange,
+}: DiagramStudioInnerProps) {
+  const sync = useFlowSync({
+    value,
+    layout,
+    // `exactOptionalPropertyTypes` requires we omit `onChange` from the
+    // options object entirely when undefined — passing `onChange: undefined`
+    // would be a type error.
+    ...(onChange !== undefined && { onChange }),
+  })
+
+  if (sync.parseError !== null) {
+    return (
+      <div className={styles.error} role="alert">
+        <div className={styles.errorTitle}>inkin: invalid Diagram</div>
+        <ul className={styles.errorList}>
+          {sync.parseError.issues.map((issue) => (
+            <li key={`${issue.path}::${issue.message}`}>
+              <code className={styles.errorPath}>{issue.path}</code>
+              {' — '}
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  return (
+    <GraphRenderer
+      nodes={sync.nodes}
+      edges={sync.edges}
+      showMinimap={minimap}
+      showControls={controls}
+      editable={sync.isEditable}
+      onNodesChange={sync.onNodesChange}
+      onEdgesChange={sync.onEdgesChange}
+      onConnect={sync.onConnect}
+      onNodesDelete={sync.onNodesDelete}
+      onEdgesDelete={sync.onEdgesDelete}
+    />
+  )
+}
+
 export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
   function DiagramStudio(
-    { value, theme = 'dark', layout = 'auto', minimap = false, controls = true, className },
+    {
+      value,
+      onChange,
+      theme = 'dark',
+      layout = 'auto',
+      minimap = false,
+      controls = true,
+      className,
+    },
     ref,
   ) {
     const wrapperRef = useRef<HTMLDivElement>(null)
@@ -102,43 +192,19 @@ export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
       [],
     )
 
-    const parseResult = useMemo(() => safeParse(value), [value])
-
-    const translated = useMemo(() => {
-      if (!parseResult.success) return null
-      const positioned = layout === 'auto' ? dagreLayout.layout(parseResult.data) : parseResult.data
-      return translate(positioned)
-    }, [parseResult, layout])
-
     return (
       <div ref={wrapperRef} data-inkin-theme={theme} className={cn(styles.root, className)}>
-        {parseResult.success && translated !== null ? (
-          <InkinStoreProvider>
-            <ReactFlowProvider>
-              <GraphRenderer
-                nodes={translated.nodes}
-                edges={translated.edges}
-                showMinimap={minimap}
-                showControls={controls}
-              />
-            </ReactFlowProvider>
-          </InkinStoreProvider>
-        ) : (
-          <div className={styles.error} role="alert">
-            <div className={styles.errorTitle}>inkin: invalid Diagram</div>
-            {!parseResult.success && (
-              <ul className={styles.errorList}>
-                {parseResult.error.issues.map((issue) => (
-                  <li key={`${issue.path}::${issue.message}`}>
-                    <code className={styles.errorPath}>{issue.path}</code>
-                    {' — '}
-                    {issue.message}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        <InkinStoreProvider>
+          <ReactFlowProvider>
+            <DiagramStudioInner
+              value={value}
+              layout={layout}
+              minimap={minimap}
+              controls={controls}
+              {...(onChange !== undefined && { onChange })}
+            />
+          </ReactFlowProvider>
+        </InkinStoreProvider>
       </div>
     )
   },
