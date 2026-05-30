@@ -139,34 +139,6 @@ function DiagramStudioInner({
     ...(onChange !== undefined && { onChange }),
   })
 
-  // Arrow-key nudger — stable per (parsedDiagram, dispatchMoveNode). Lives
-  // here so the keymap stays schema-agnostic. Always built (even in
-  // read-only mode); useKeymap's `enabled` flag short-circuits the
-  // attach.
-  const nudgeNode = useMemo(
-    () =>
-      buildArrowKeyNudger({
-        parsedDiagram: sync.parsedDiagram,
-        dispatchMoveNode: sync.dispatchMoveNode,
-      }),
-    [sync.parsedDiagram, sync.dispatchMoveNode],
-  )
-
-  // Lookup callback for the Enter keybinding — seeds the inline-edit
-  // draft with the focused node's current label so EditableLabel can
-  // select-all on mount (matches the double-click flow).
-  const getNodeLabel = useMemo(
-    () => (id: string) => sync.parsedDiagram?.nodes.find((n) => n.id === id)?.label ?? null,
-    [sync.parsedDiagram],
-  )
-
-  useKeymap({
-    target: wrapperRef,
-    enabled: sync.isEditable,
-    dispatchMoveNode: nudgeNode,
-    getNodeLabel,
-  })
-
   if (sync.parseError !== null) {
     return (
       <div className={styles.error} role="alert">
@@ -185,18 +157,34 @@ function DiagramStudioInner({
   }
 
   const renderer = (
-    <GraphRenderer
-      nodes={sync.nodes}
-      edges={sync.edges}
-      showMinimap={minimap}
-      showControls={controls}
-      editable={sync.isEditable}
-      onNodesChange={sync.onNodesChange}
-      onEdgesChange={sync.onEdgesChange}
-      onConnect={sync.onConnect}
-      onNodesDelete={sync.onNodesDelete}
-      onEdgesDelete={sync.onEdgesDelete}
-    />
+    <>
+      {/*
+        KeymapMount must be a child of EditingProvider so its
+        `useEditingActions()` call sees the actions context (used by the
+        Enter keybinding to start an inline edit). It returns null — its
+        only side-effect is attaching the keydown handler in `useKeymap`.
+        In read-only mode (no provider mounted below) the keymap still
+        mounts but `enabled: false` makes it a no-op.
+      */}
+      <KeymapMount
+        wrapperRef={wrapperRef}
+        enabled={sync.isEditable}
+        parsedDiagram={sync.parsedDiagram}
+        dispatchMoveNode={sync.dispatchMoveNode}
+      />
+      <GraphRenderer
+        nodes={sync.nodes}
+        edges={sync.edges}
+        showMinimap={minimap}
+        showControls={controls}
+        editable={sync.isEditable}
+        onNodesChange={sync.onNodesChange}
+        onEdgesChange={sync.onEdgesChange}
+        onConnect={sync.onConnect}
+        onNodesDelete={sync.onNodesDelete}
+        onEdgesDelete={sync.onEdgesDelete}
+      />
+    </>
   )
 
   // EditingContext is mounted ONLY in editable mode — its presence is the
@@ -204,6 +192,33 @@ function DiagramStudioInner({
   // <EditableLabel> (editable) and a static <div> (read-only).
   if (!sync.isEditable) return renderer
   return <EditingProvider dispatchSetField={sync.dispatchSetField}>{renderer}</EditingProvider>
+}
+
+/**
+ * Mounts the keyboard a11y layer. Lives as a real child component (not a
+ * hook call at the top of DiagramStudioInner) so its `useEditingActions()`
+ * call resolves against the EditingProvider above it — without this seam,
+ * the keymap would see a null editing context and Enter→inline-edit would
+ * silently no-op. Renders nothing.
+ */
+interface KeymapMountProps {
+  readonly wrapperRef: React.RefObject<HTMLDivElement | null>
+  readonly enabled: boolean
+  readonly parsedDiagram: Diagram | null
+  readonly dispatchMoveNode: (nodeId: string, position: { x: number; y: number }) => void
+}
+
+function KeymapMount({ wrapperRef, enabled, parsedDiagram, dispatchMoveNode }: KeymapMountProps) {
+  const nudgeNode = useMemo(
+    () => buildArrowKeyNudger({ parsedDiagram, dispatchMoveNode }),
+    [parsedDiagram, dispatchMoveNode],
+  )
+  const getNodeLabel = useMemo(
+    () => (id: string) => parsedDiagram?.nodes.find((n) => n.id === id)?.label ?? null,
+    [parsedDiagram],
+  )
+  useKeymap({ target: wrapperRef, enabled, dispatchMoveNode: nudgeNode, getNodeLabel })
+  return null
 }
 
 export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
