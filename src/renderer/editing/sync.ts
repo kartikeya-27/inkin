@@ -16,6 +16,7 @@ import { dagreLayout } from '../../schema/layout'
 import type { Diagram, DiagramInput } from '../../schema/types'
 import { type InkinValidationError, safeParse } from '../../schema/validate'
 import { translate, xyflowPositionToAbsolute } from '../translate'
+import { useEditorStoreApi } from '../store'
 import { applyPatch } from './apply-patch'
 import type { Patch, SetFieldTarget } from './patches'
 
@@ -107,6 +108,15 @@ export interface UseFlowSyncResult {
    * patch dispatcher private to this hook.
    */
   readonly dispatchSetField: (target: SetFieldTarget, value: string) => void
+  /**
+   * Convenience wrapper around the internal patch dispatcher specifically
+   * for the keyboard a11y nudge path. Phase 11's `useKeymap` calls this on
+   * arrow-key presses with the selected node's NEW absolute position.
+   * Unlike the drag-end path inside `onNodesChange`, the keymap is
+   * cluster-agnostic because it computes the new position from the parsed
+   * schema's already-absolute coordinates.
+   */
+  readonly dispatchMoveNode: (nodeId: string, position: { x: number; y: number }) => void
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -138,6 +148,7 @@ function computeTranslated(
 export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
   const { value, layout = 'auto', onChange } = options
   const isEditable = onChange !== undefined
+  const storeApi = useEditorStoreApi()
 
   // --- Read path: parse + translate, seed xyflow's local state ------------
 
@@ -265,6 +276,25 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
       // let the user move them).
       _setNodes((current) => applyNodeChanges(changes, current))
 
+      // Mirror xyflow's selection into our SelectionSlice so the keymap +
+      // EditableLabel + future Inspector can read selection via Zustand
+      // selectors without subscribing to xyflow's internal store. We
+      // batch the selection change events in this tick into a single
+      // setSelection call (avoids N store writes for a marquee-select).
+      let nextSelection: Set<string> | null = null
+      for (const change of changes) {
+        if (change.type === 'select') {
+          if (nextSelection === null) {
+            nextSelection = new Set(storeApi.getState().selectedNodeIds)
+          }
+          if (change.selected) nextSelection.add(change.id)
+          else nextSelection.delete(change.id)
+        }
+      }
+      if (nextSelection !== null) {
+        storeApi.getState().setSelection({ nodes: nextSelection })
+      }
+
       if (!isEditable) return
 
       for (const change of changes) {
@@ -286,12 +316,27 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
         // `dragging: true`, `add`, `replace`) stay local — no patch.
       }
     },
-    [_setNodes, isEditable, dispatchPatch],
+    [_setNodes, isEditable, dispatchPatch, storeApi],
   )
 
   const onEdgesChange = useCallback<OnEdgesChange>(
     (changes: EdgeChange[]) => {
       _setEdges((current) => applyEdgeChanges(changes, current))
+
+      // Mirror edge selection (same pattern as nodes above).
+      let nextSelection: Set<string> | null = null
+      for (const change of changes) {
+        if (change.type === 'select') {
+          if (nextSelection === null) {
+            nextSelection = new Set(storeApi.getState().selectedEdgeIds)
+          }
+          if (change.selected) nextSelection.add(change.id)
+          else nextSelection.delete(change.id)
+        }
+      }
+      if (nextSelection !== null) {
+        storeApi.getState().setSelection({ edges: nextSelection })
+      }
 
       if (!isEditable) return
 
@@ -299,10 +344,10 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
         if (change.type === 'remove') {
           dispatchPatch({ kind: 'DeleteEdge', edgeId: change.id })
         }
-        // `select` and `add`/`replace` stay local.
+        // `add`/`replace` stay local.
       }
     },
-    [_setEdges, isEditable, dispatchPatch],
+    [_setEdges, isEditable, dispatchPatch, storeApi],
   )
 
   const onConnect = useCallback<OnConnect>(
@@ -339,6 +384,19 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [dispatchPatch],
   )
 
+  /**
+   * Public face of `dispatchPatch` for the MoveNode verb. Phase 11's
+   * keymap layer uses this for arrow-key nudges, passing in absolute
+   * canvas coordinates the caller already computed (the keymap reads
+   * the current schema position from `parsedDiagram` and adds the delta).
+   */
+  const dispatchMoveNode = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      dispatchPatch({ kind: 'MoveNode', nodeId, position })
+    },
+    [dispatchPatch],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -357,6 +415,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     onNodesDelete,
     onEdgesDelete,
     dispatchSetField,
+    dispatchMoveNode,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

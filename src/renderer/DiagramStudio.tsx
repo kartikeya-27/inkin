@@ -1,8 +1,9 @@
 'use client'
 
 import { ReactFlowProvider } from '@xyflow/react'
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Diagram, DiagramInput } from '../schema/types'
+import { buildArrowKeyNudger, useKeymap } from './a11y'
 import styles from './DiagramStudio.module.css'
 import { EditingProvider, useFlowSync } from './editing'
 import { type ToSvgOptions, toSvg } from './export/svg'
@@ -107,6 +108,12 @@ interface DiagramStudioInnerProps {
   readonly minimap: boolean
   readonly controls: boolean
   readonly onChange?: (next: Diagram) => void
+  /**
+   * Outer wrapper ref — passed down so the Phase 11 keymap can attach its
+   * keydown handler. The wrapper itself is rendered by the outer
+   * DiagramStudio (for the data-inkin-theme attribute + SVG export ref).
+   */
+  readonly wrapperRef: React.RefObject<HTMLDivElement | null>
 }
 
 /**
@@ -121,6 +128,7 @@ function DiagramStudioInner({
   minimap,
   controls,
   onChange,
+  wrapperRef,
 }: DiagramStudioInnerProps) {
   const sync = useFlowSync({
     value,
@@ -129,6 +137,21 @@ function DiagramStudioInner({
     // options object entirely when undefined — passing `onChange: undefined`
     // would be a type error.
     ...(onChange !== undefined && { onChange }),
+  })
+
+  // Arrow-key nudger — stable per (parsedDiagram, dispatchMoveNode). Lives
+  // here so the keymap stays schema-agnostic. Always built (even in
+  // read-only mode); useKeymap's `enabled` flag short-circuits the
+  // attach.
+  const nudgeNode = useMemo(
+    () => buildArrowKeyNudger({ parsedDiagram: sync.parsedDiagram, dispatchMoveNode: sync.dispatchMoveNode }),
+    [sync.parsedDiagram, sync.dispatchMoveNode],
+  )
+
+  useKeymap({
+    target: wrapperRef,
+    enabled: sync.isEditable,
+    dispatchMoveNode: nudgeNode,
   })
 
   if (sync.parseError !== null) {
@@ -207,6 +230,7 @@ export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
               layout={layout}
               minimap={minimap}
               controls={controls}
+              wrapperRef={wrapperRef}
               {...(onChange !== undefined && { onChange })}
             />
           </ReactFlowProvider>
