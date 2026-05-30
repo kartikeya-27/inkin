@@ -53,12 +53,25 @@ export interface UseKeymapOptions {
    * subscribe to the parsed Diagram; it just needs a way to dispatch.
    */
   readonly dispatchMoveNode: (nodeId: string, dx: number, dy: number) => void
+  /**
+   * Read the current label of a node from the schema. Used by the Enter
+   * keybinding to seed the inline-edit input with the node's current
+   * label (matching the double-click path's behavior). Returns `null` when
+   * the node id isn't in the schema. Optional — when absent, Enter opens
+   * the edit with an empty draft.
+   */
+  readonly getNodeLabel?: (nodeId: string) => string | null
 }
 
 /** Pixel step for arrow-key nudges. Matches the plan's keyboard a11y floor. */
 const NUDGE_STEP = 10
 
-export function useKeymap({ target, enabled, dispatchMoveNode }: UseKeymapOptions): void {
+export function useKeymap({
+  target,
+  enabled,
+  dispatchMoveNode,
+  getNodeLabel,
+}: UseKeymapOptions): void {
   const storeApi = useEditorStoreApi()
   const editing = useEditingActions()
 
@@ -86,11 +99,21 @@ export function useKeymap({ target, enabled, dispatchMoveNode }: UseKeymapOption
         case 'ArrowDown':
         case 'ArrowLeft':
         case 'ArrowRight': {
-          const selected = state.selectedNodeIds
-          if (selected.size === 0) return // Let xyflow's default arrow-pan handle it.
+          // Target list: selected nodes take precedence (click-to-select
+          // workflow); fall back to the keyboard-focused node so a
+          // Tab-driven workflow (Tab to focus → Arrow to nudge) also
+          // works without requiring an explicit selection click.
+          let targets: string[] = []
+          if (state.selectedNodeIds.size > 0) {
+            targets = Array.from(state.selectedNodeIds)
+          } else {
+            const focusedId = activeElementNodeId()
+            if (focusedId !== null) targets = [focusedId]
+          }
+          if (targets.length === 0) return // Let xyflow's default arrow-pan handle it.
           event.preventDefault()
           const [dx, dy] = arrowDelta(event.key)
-          for (const id of selected) dispatchMoveNode(id, dx, dy)
+          for (const id of targets) dispatchMoveNode(id, dx, dy)
           return
         }
         case 'Enter': {
@@ -100,17 +123,12 @@ export function useKeymap({ target, enabled, dispatchMoveNode }: UseKeymapOption
           const focusedId = activeElementNodeId()
           if (focusedId === null) return
           event.preventDefault()
-          // We don't know the current label here without reading the
-          // parsed diagram, which the keymap deliberately doesn't subscribe
-          // to. The convention: open the edit with an empty initial draft,
-          // and BaseNode's `onStartEdit` re-initializes via its own
-          // `editing.startEdit(target, currentLabel)` call when the user
-          // double-clicks. For Enter we just signal "start editing this
-          // node's label" with a sentinel that BaseNode's subsequent
-          // re-render picks up. The simpler implementation: use
-          // editing.startEdit directly with empty initial text; the
-          // EditableLabel auto-selects so the user types over it anyway.
-          editing?.startEdit({ kind: 'node-label', id: focusedId }, '')
+          // Seed the inline-edit draft with the node's current label so
+          // EditableLabel can select-all on mount (matches the double-
+          // click path). Fall back to empty when no getNodeLabel is
+          // provided or the id isn't in the schema.
+          const initial = getNodeLabel?.(focusedId) ?? ''
+          editing?.startEdit({ kind: 'node-label', id: focusedId }, initial)
           return
         }
         case 'Escape': {
@@ -125,7 +143,7 @@ export function useKeymap({ target, enabled, dispatchMoveNode }: UseKeymapOption
     return () => {
       element.removeEventListener('keydown', handleKeyDown)
     }
-  }, [target, enabled, storeApi, editing, dispatchMoveNode])
+  }, [target, enabled, storeApi, editing, dispatchMoveNode, getNodeLabel])
 }
 
 /**

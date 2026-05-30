@@ -40,6 +40,7 @@ interface HarnessProps {
   readonly enabled?: boolean
   readonly dispatchMoveNode?: ReturnType<typeof vi.fn>
   readonly dispatchSetField?: ReturnType<typeof vi.fn>
+  readonly getNodeLabel?: (id: string) => string | null
   /** Called once with the live store API. */
   readonly storeRef?: (api: ReturnType<typeof useEditorStoreApi>) => void
 }
@@ -48,6 +49,7 @@ function Harness({
   enabled = true,
   dispatchMoveNode = vi.fn(),
   dispatchSetField = vi.fn(),
+  getNodeLabel,
   storeRef,
 }: HarnessProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -58,6 +60,7 @@ function Harness({
           wrapperRef={wrapperRef}
           enabled={enabled}
           dispatchMoveNode={dispatchMoveNode}
+          {...(getNodeLabel !== undefined && { getNodeLabel })}
         />
         <StoreExposer storeRef={storeRef} />
         {/* biome-ignore lint/a11y/noNoninteractiveTabindex: test fixture — the wrapper needs to receive keydown events; not a real interactive control */}
@@ -71,12 +74,19 @@ function KeymapMount({
   wrapperRef,
   enabled,
   dispatchMoveNode,
+  getNodeLabel,
 }: {
   wrapperRef: React.RefObject<HTMLDivElement | null>
   enabled: boolean
   dispatchMoveNode: (nodeId: string, dx: number, dy: number) => void
+  getNodeLabel?: (id: string) => string | null
 }) {
-  useKeymap({ target: wrapperRef, enabled, dispatchMoveNode })
+  useKeymap({
+    target: wrapperRef,
+    enabled,
+    dispatchMoveNode,
+    ...(getNodeLabel !== undefined && { getNodeLabel }),
+  })
   return null
 }
 
@@ -145,11 +155,52 @@ describe('useKeymap — arrow keys', () => {
     expect(dispatchMoveNode).toHaveBeenNthCalledWith(4, 'a', NUDGE_STEP, 0)
   })
 
-  it('does NOT dispatch when no nodes are selected (xyflow pan passes through)', () => {
+  it('does NOT dispatch when no nodes are selected and no node is focused', () => {
     const dispatchMoveNode = vi.fn()
     const { getByTestId } = render(<Harness dispatchMoveNode={dispatchMoveNode} />)
     fireKey(getByTestId('wrapper'), 'ArrowRight')
     expect(dispatchMoveNode).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the keyboard-focused node when no nodes are selected (Tab + Arrow flow)', () => {
+    const dispatchMoveNode = vi.fn()
+    const { getByTestId, container } = render(<Harness dispatchMoveNode={dispatchMoveNode} />)
+
+    // Simulate Tab landing on a node — xyflow tags the focused element
+    // with data-id. No setSelection call: this is the pure-keyboard path.
+    const nodeEl = document.createElement('div')
+    nodeEl.setAttribute('data-id', 'focused-only')
+    nodeEl.setAttribute('tabindex', '0')
+    container.appendChild(nodeEl)
+    nodeEl.focus()
+
+    fireKey(getByTestId('wrapper'), 'ArrowLeft')
+
+    expect(dispatchMoveNode).toHaveBeenCalledTimes(1)
+    expect(dispatchMoveNode).toHaveBeenCalledWith('focused-only', -NUDGE_STEP, 0)
+  })
+
+  it('prefers selection over focused node when both are present', () => {
+    const dispatchMoveNode = vi.fn()
+    const ref = mkRef()
+    const { getByTestId, container } = render(
+      <Harness dispatchMoveNode={dispatchMoveNode} storeRef={(api) => (ref.api = api)} />,
+    )
+    act(() => {
+      ref.api?.getState().setSelection({ nodes: new Set(['selected']) })
+    })
+
+    // Focus a DIFFERENT node — keymap should still nudge the selected one.
+    const nodeEl = document.createElement('div')
+    nodeEl.setAttribute('data-id', 'focused-but-not-selected')
+    nodeEl.setAttribute('tabindex', '0')
+    container.appendChild(nodeEl)
+    nodeEl.focus()
+
+    fireKey(getByTestId('wrapper'), 'ArrowDown')
+
+    expect(dispatchMoveNode).toHaveBeenCalledTimes(1)
+    expect(dispatchMoveNode).toHaveBeenCalledWith('selected', 0, NUDGE_STEP)
   })
 })
 
@@ -176,6 +227,39 @@ describe('useKeymap — Enter on focused node', () => {
     const { getByTestId } = render(<Harness storeRef={(api) => (ref.api = api)} />)
     fireKey(getByTestId('wrapper'), 'Enter')
     expect(ref.api?.getState().editTarget).toBeNull()
+  })
+
+  it('seeds the inline-edit draft with the node label looked up via getNodeLabel', () => {
+    const ref = mkRef()
+    const labels: Record<string, string> = { a: 'Idea', b: 'Sketch' }
+    const { getByTestId, container } = render(
+      <Harness storeRef={(api) => (ref.api = api)} getNodeLabel={(id) => labels[id] ?? null} />,
+    )
+    const nodeEl = document.createElement('div')
+    nodeEl.setAttribute('data-id', 'a')
+    nodeEl.setAttribute('tabindex', '0')
+    container.appendChild(nodeEl)
+    nodeEl.focus()
+
+    fireKey(getByTestId('wrapper'), 'Enter')
+
+    const state = ref.api?.getState()
+    expect(state?.editTarget).toEqual({ kind: 'node-label', id: 'a' })
+    expect(state?.draftText).toBe('Idea')
+  })
+
+  it('falls back to empty draft when getNodeLabel is not provided', () => {
+    const ref = mkRef()
+    const { getByTestId, container } = render(<Harness storeRef={(api) => (ref.api = api)} />)
+    const nodeEl = document.createElement('div')
+    nodeEl.setAttribute('data-id', 'a')
+    nodeEl.setAttribute('tabindex', '0')
+    container.appendChild(nodeEl)
+    nodeEl.focus()
+
+    fireKey(getByTestId('wrapper'), 'Enter')
+
+    expect(ref.api?.getState().draftText).toBe('')
   })
 })
 

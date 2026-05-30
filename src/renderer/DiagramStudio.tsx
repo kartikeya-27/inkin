@@ -152,10 +152,19 @@ function DiagramStudioInner({
     [sync.parsedDiagram, sync.dispatchMoveNode],
   )
 
+  // Lookup callback for the Enter keybinding — seeds the inline-edit
+  // draft with the focused node's current label so EditableLabel can
+  // select-all on mount (matches the double-click flow).
+  const getNodeLabel = useMemo(
+    () => (id: string) => sync.parsedDiagram?.nodes.find((n) => n.id === id)?.label ?? null,
+    [sync.parsedDiagram],
+  )
+
   useKeymap({
     target: wrapperRef,
     enabled: sync.isEditable,
     dispatchMoveNode: nudgeNode,
+    getNodeLabel,
   })
 
   if (sync.parseError !== null) {
