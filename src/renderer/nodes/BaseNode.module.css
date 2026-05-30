@@ -24,14 +24,28 @@
   font-family: var(--inkin-font-sans);
   box-shadow: var(--inkin-shadow-node);
   box-sizing: border-box;
+  /* Smooth selection-ring fade-in. Short duration so the response feels
+   * immediate but not abrupt. */
+  transition: box-shadow 120ms ease-out;
+}
+
+/* Selection ring — driven by xyflow's NodeProps.selected, plumbed through
+ * RectNode / TerminalNode → BaseNode. Uses a second box-shadow layer so it
+ * composes with the existing shadow rather than replacing it. The accent
+ * color comes from the active theme tokens. */
+.selected {
+  box-shadow:
+    var(--inkin-shadow-node),
+    0 0 0 2px var(--inkin-accent-primary);
 }
 
 .handle {
-  /* Functional anchor for edges, visually invisible in read-only 0.2.0. */
+  /* Functional anchor for edges. Stays visually invisible — the editing
+   * affordance is the node hover/cursor; consumers who want visible
+   * handle dots can override `--inkin-handle-*` tokens (post-1.0). */
   width: 6px;
   height: 6px;
   opacity: 0;
-  pointer-events: none;
   background: transparent;
   border: none;
 }

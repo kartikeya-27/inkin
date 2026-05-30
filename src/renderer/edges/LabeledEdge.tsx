@@ -47,6 +47,7 @@ export function LabeledEdge({
   targetPosition,
   data,
   markerEnd,
+  selected,
 }: EdgeProps<LabeledEdgeType>) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -78,13 +79,13 @@ export function LabeledEdge({
       <BaseEdge
         id={id}
         path={edgePath}
-        className={cn(styles.path, isDashed && styles.dashed)}
+        className={cn(styles.path, isDashed && styles.dashed, selected && styles.selected)}
         {...(markerEnd !== undefined && { markerEnd })}
       />
       {shouldRenderLabel && (
         <EdgeLabelRenderer>
           <div
-            className={styles.label}
+            className={cn(styles.label, selected && styles.labelSelected)}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}

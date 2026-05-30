@@ -11,10 +11,26 @@
   stroke: var(--inkin-edge-stroke);
   stroke-width: 1.5px;
   fill: none;
+  transition: stroke 120ms ease-out, stroke-width 120ms ease-out;
 }
 
 .dashed {
   stroke-dasharray: 5 3;
+}
+
+/* Selection state — driven by xyflow's EdgeProps.selected.
+ * Thicker stroke + accent color make the edge unambiguously selected
+ * without obscuring its directional arrowhead. */
+.selected {
+  stroke: var(--inkin-accent-primary);
+  stroke-width: 2.5px;
+}
+
+/* Edge label takes a faint selection ring too so the user can tell whether
+ * Tab landed on the edge vs the surrounding canvas. Lives on the label
+ * div; doesn't require any wrapper restructure. */
+.labelSelected {
+  border-color: var(--inkin-accent-primary);
 }
 
 .label {

@@ -1,0 +1,35 @@
+/*
+ * Editing-related global styles — overrides on xyflow's own classes that
+ * can't live in CSS Modules (the CSS Module hashes our class names so we
+ * can't reference `.react-flow__node` from inside one). Kept narrow:
+ * the only global selectors here target xyflow's documented class
+ * hierarchy.
+ *
+ * Imported by `renderer/styles.css`, which Lightning CSS inlines into the
+ * bundled `dist/styles.css`.
+ */
+
+/* Keyboard focus ring for nodes.
+ *
+ * xyflow flips `tabindex="0"` on its `.react-flow__node` wrapper when
+ * `nodesFocusable={true}` (set by GraphRenderer in editable mode). The
+ * focus styling needs to live on this wrapper, not on our inner BaseNode
+ * div — otherwise the user Tabs to the wrapper but the visual indicator
+ * is one level deeper.
+ *
+ * `:focus-visible` rather than `:focus` so mouse clicks don't trigger the
+ * ring (matches the standard accessibility recommendation — visible
+ * focus indicators are for keyboard users). */
+.react-flow__node:focus-visible {
+  outline: 2px solid var(--inkin-accent-primary);
+  outline-offset: 3px;
+  border-radius: var(--inkin-node-radius);
+}
+
+/* xyflow's own selection box-shadow on `.react-flow__node.selected` is
+ * suppressed because our BaseNode renders its own selection ring (the
+ * `.selected` modifier in BaseNode.module.css). Leaving xyflow's default
+ * on would produce a double ring on selected nodes. */
+.react-flow__node.selected {
+  box-shadow: none;
+}

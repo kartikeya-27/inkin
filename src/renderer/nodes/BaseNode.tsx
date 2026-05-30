@@ -46,6 +46,14 @@ export interface BaseNodeProps {
   readonly id: string
   readonly data: InkinNodeData
   /**
+   * xyflow's selection flag for this node. Drives the `.selected` modifier
+   * class which renders the accent-color selection ring. Plumbed from the
+   * variant component (RectNode / TerminalNode → NodeProps.selected) so
+   * the ring tracks xyflow's visual selection state directly (matches the
+   * `Mirror both` decision from the plan).
+   */
+  readonly selected?: boolean
+  /**
    * Outer-wrapper class from the variant's CSS Module (RectNode or TerminalNode).
    * Explicitly `string | undefined` (not bare-optional) because under
    * `exactOptionalPropertyTypes`, CSS Module class accesses (typed as
@@ -56,7 +64,7 @@ export interface BaseNodeProps {
   readonly className?: string | undefined
 }
 
-export function BaseNode({ id, data, className }: BaseNodeProps) {
+export function BaseNode({ id, data, selected, className }: BaseNodeProps) {
   const editing = useEditingActions()
   // Narrow selectors so this BaseNode only re-renders when ITS own edit state
   // changes — selecting an unrelated node doesn't ripple here.
@@ -73,7 +81,7 @@ export function BaseNode({ id, data, className }: BaseNodeProps) {
   )
 
   return (
-    <div className={cn(styles.root, className)}>
+    <div className={cn(styles.root, selected && styles.selected, className)}>
       <Handle type="target" position={Position.Left} className={styles.handle} />
       <Handle type="source" position={Position.Right} className={styles.handle} />
 
