@@ -17,13 +17,23 @@
  * div — otherwise the user Tabs to the wrapper but the visual indicator
  * is one level deeper.
  *
- * `:focus-visible` rather than `:focus` so mouse clicks don't trigger the
- * ring (matches the standard accessibility recommendation — visible
- * focus indicators are for keyboard users). */
+ * box-shadow (rather than outline) so the indicator can't be clipped by
+ * xyflow's transform stack — outline-offset is rendered outside the box
+ * and sometimes lands in a clip-path region the user can't see. The
+ * shadow's spread + alpha glow makes it unambiguously visible on both
+ * dark and light themes.
+ *
+ * `:focus-visible` rather than `:focus` so mouse clicks don't trigger
+ * the ring (standard a11y guidance — visible focus indicators are for
+ * keyboard users); selected nodes get their own ring from
+ * BaseNode.module.css's `.selected`. */
 .react-flow__node:focus-visible {
-  outline: 2px solid var(--inkin-accent-primary);
-  outline-offset: 3px;
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--inkin-bg-canvas),
+    0 0 0 5px var(--inkin-accent-primary);
   border-radius: var(--inkin-node-radius);
+  z-index: 5;
 }
 
 /* xyflow's own selection box-shadow on `.react-flow__node.selected` is

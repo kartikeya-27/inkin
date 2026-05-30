@@ -184,15 +184,24 @@ function arrowDelta(key: string): [number, number] {
 }
 
 /**
- * Read the id of the currently keyboard-focused xyflow node, by looking up
- * `data-id` on the document's active element. xyflow's accessibility
- * contract: focusable node elements carry `data-id="<nodeId>"`. Returns
- * null when no node is focused (e.g., focus is on the canvas pane).
+ * Read the id of the currently keyboard-focused xyflow node, by walking up
+ * from `document.activeElement` to the nearest ancestor with a `data-id`.
+ *
+ * Why walk up instead of reading `data-id` off `activeElement` directly:
+ * xyflow's a11y wrapping sometimes places focus on an inner button-style
+ * element while the `data-id` lives on the `.react-flow__node` wrapper
+ * one or two levels above. The traversal is bounded (DOM depth is small)
+ * and works whichever element xyflow ends up focusing.
+ *
+ * Returns null when no ancestor carries a `data-id` (e.g., focus is on
+ * the canvas pane, the React Flow controls, or outside the diagram).
  */
 function activeElementNodeId(): string | null {
   const active = typeof document !== 'undefined' ? document.activeElement : null
   if (active === null) return null
-  const id = active.getAttribute('data-id')
+  const withId = active.closest('[data-id]')
+  if (withId === null) return null
+  const id = withId.getAttribute('data-id')
   return id !== null && id.length > 0 ? id : null
 }
 
