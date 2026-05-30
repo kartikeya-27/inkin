@@ -17,7 +17,7 @@ import type { Diagram, DiagramInput } from '../../schema/types'
 import { type InkinValidationError, safeParse } from '../../schema/validate'
 import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
-import type { Patch } from './patches'
+import type { Patch, SetFieldTarget } from './patches'
 
 /**
  * `useFlowSync` — the controlled-state-sync hook that bridges the inkin
@@ -100,6 +100,13 @@ export interface UseFlowSyncResult {
   readonly onNodesDelete: (deleted: Node[]) => void
   /** Pass to `<ReactFlow onEdgesDelete>`. */
   readonly onEdgesDelete: (deleted: Edge[]) => void
+  /**
+   * Convenience wrapper around the internal patch dispatcher specifically
+   * for the inline-edit commit path. Phase 10's `EditingContext` calls this
+   * when the user commits an `<EditableLabel>` — keeps the rest of the
+   * patch dispatcher private to this hook.
+   */
+  readonly dispatchSetField: (target: SetFieldTarget, value: string) => void
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -320,6 +327,18 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [isEditable, dispatchPatch],
   )
 
+  /**
+   * Public face of `dispatchPatch` for the SetField verb. Phase 10's
+   * EditingContext consumes this so inline-edit commits land in the same
+   * pipeline as drag/connect/delete events.
+   */
+  const dispatchSetField = useCallback(
+    (target: SetFieldTarget, value: string) => {
+      dispatchPatch({ kind: 'SetField', target, value })
+    },
+    [dispatchPatch],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -337,6 +356,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     onConnect,
     onNodesDelete,
     onEdgesDelete,
+    dispatchSetField,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

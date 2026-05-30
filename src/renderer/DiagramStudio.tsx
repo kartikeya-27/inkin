@@ -4,7 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import type { Diagram, DiagramInput } from '../schema/types'
 import styles from './DiagramStudio.module.css'
-import { useFlowSync } from './editing'
+import { EditingProvider, useFlowSync } from './editing'
 import { type ToSvgOptions, toSvg } from './export/svg'
 import { GraphRenderer } from './GraphRenderer'
 import { cn } from './lib/cn'
@@ -148,7 +148,7 @@ function DiagramStudioInner({
     )
   }
 
-  return (
+  const renderer = (
     <GraphRenderer
       nodes={sync.nodes}
       edges={sync.edges}
@@ -162,6 +162,12 @@ function DiagramStudioInner({
       onEdgesDelete={sync.onEdgesDelete}
     />
   )
+
+  // EditingContext is mounted ONLY in editable mode — its presence is the
+  // signal that BaseNode / LabeledEdge use to decide between an
+  // <EditableLabel> (editable) and a static <div> (read-only).
+  if (!sync.isEditable) return renderer
+  return <EditingProvider dispatchSetField={sync.dispatchSetField}>{renderer}</EditingProvider>
 }
 
 export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(

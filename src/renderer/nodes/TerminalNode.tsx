@@ -12,6 +12,6 @@ import styles from './TerminalNode.module.css'
 
 export type TerminalNodeType = Node<InkinNodeData, 'terminal'>
 
-export function TerminalNode({ data }: NodeProps<TerminalNodeType>) {
-  return <BaseNode data={data} className={styles.root} />
+export function TerminalNode({ id, data }: NodeProps<TerminalNodeType>) {
+  return <BaseNode id={id} data={data} className={styles.root} />
 }

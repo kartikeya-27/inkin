@@ -11,6 +11,6 @@ import styles from './RectNode.module.css'
 
 export type RectNodeType = Node<InkinNodeData, 'rect'>
 
-export function RectNode({ data }: NodeProps<RectNodeType>) {
-  return <BaseNode data={data} className={styles.root} />
+export function RectNode({ id, data }: NodeProps<RectNodeType>) {
+  return <BaseNode id={id} data={data} className={styles.root} />
 }
