@@ -182,15 +182,17 @@ export function translate(diagram: Diagram): TranslatedDiagram {
         ? { label: node.label, sublabel: node.sublabel }
         : { label: node.label }
 
+    // Note: from 0.3.0 the `selectable` / `draggable` / `connectable` flags
+    // on regular nodes are intentionally omitted so xyflow inherits the
+    // top-level defaults that GraphRenderer sets based on whether `onChange`
+    // was provided. Cluster nodes keep their `false` overrides above — they
+    // remain non-editable even in edit mode (cross-cluster drag and cluster
+    // rename land in 0.4.0 with the Inspector / Palette chrome).
     const xyNode: XyNode<InkinNodeData> = {
       id: node.id,
       type: node.shape, // 'rect' | 'terminal' — matches keys in renderer/nodes/nodeTypes
       position,
       data,
-      // Read-only renderer (0.2.0): same constraints as cluster nodes above.
-      selectable: false,
-      draggable: false,
-      connectable: false,
     }
 
     if (node.cluster !== undefined) {

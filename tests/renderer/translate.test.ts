@@ -123,8 +123,8 @@ describe('translate() — basic shape', () => {
   })
 })
 
-describe('translate() — read-only mode (0.2.0)', () => {
-  it('marks every node as non-selectable, non-draggable, non-connectable', () => {
+describe('translate() — node edit-flag policy', () => {
+  it('marks cluster nodes as non-selectable, non-draggable, non-connectable (always)', () => {
     const { nodes } = translate(
       parse({
         schemaVersion: 1,
@@ -136,10 +136,32 @@ describe('translate() — read-only mode (0.2.0)', () => {
         edges: [],
       }),
     )
+    const cluster = nodes.find((n) => n.id === 'g')
+    expect(cluster?.selectable).toBe(false)
+    expect(cluster?.draggable).toBe(false)
+    expect(cluster?.connectable).toBe(false)
+  })
+
+  it('leaves regular nodes WITHOUT per-node flags so GraphRenderer can flip them on `editable`', () => {
+    // From 0.3.0 onward, the editability of regular nodes is owned by the
+    // GraphRenderer top-level `nodesDraggable` / `nodesConnectable` /
+    // `elementsSelectable` props (which derive from whether the consumer
+    // supplied `onChange`). translate() must NOT hardcode them on the node
+    // object, or it would override the top-level flag.
+    const { nodes } = translate(
+      parse({
+        schemaVersion: 1,
+        nodes: [
+          { id: 'a', label: 'A', position: { x: 0, y: 0 } },
+          { id: 'b', label: 'B', shape: 'terminal', position: { x: 100, y: 0 } },
+        ],
+        edges: [],
+      }),
+    )
     for (const node of nodes) {
-      expect(node.selectable).toBe(false)
-      expect(node.draggable).toBe(false)
-      expect(node.connectable).toBe(false)
+      expect(node.selectable).toBeUndefined()
+      expect(node.draggable).toBeUndefined()
+      expect(node.connectable).toBeUndefined()
     }
   })
 })

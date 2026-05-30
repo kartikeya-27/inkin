@@ -302,12 +302,15 @@ describe('useFlowSync — write path: ConnectEdge dispatch', () => {
       useFlowSync({ value: triangle, layout: 'manual', onChange }),
     )
     act(() => {
+      // xyflow's `Connection` type marks source/target as `string`, but
+      // mid-drag states with no snapped handle produce null at runtime —
+      // cast to exercise the defensive guard in the dispatcher.
       result.current.onConnect({
         source: null,
         target: 'b',
         sourceHandle: null,
         targetHandle: null,
-      })
+      } as unknown as Parameters<typeof result.current.onConnect>[0])
     })
     expect(onChange).not.toHaveBeenCalled()
   })
