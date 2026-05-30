@@ -225,6 +225,46 @@ export function translate(diagram: Diagram): TranslatedDiagram {
 }
 
 /**
+ * Convert an xyflow node's position back to schema-absolute canvas coordinates.
+ *
+ * This is the inverse of the absolute→relative conversion at the top of
+ * {@link translate} (the block that subtracts the parent cluster's position
+ * from a clustered child's coordinates). xyflow stores clustered children
+ * with positions relative to their parent cluster's top-left, but the inkin
+ * schema stores every node's position in absolute canvas coordinates, so
+ * the editing layer needs to put the cluster offset back before constructing
+ * a `MoveNode` patch.
+ *
+ * Usage at drag-end (see `useFlowSync` in phase 6): given the changed xyflow
+ * node, look up its parent in xyflow's current nodes array (if any) and pass
+ * the parent's `position` as the second argument. For top-level nodes that
+ * have no parent, omit the second argument — the helper is a no-op for them.
+ *
+ *   const parent = node.parentId
+ *     ? currentXyNodes.find((n) => n.id === node.parentId)
+ *     : undefined
+ *   const absolute = xyflowPositionToAbsolute(node.position, parent?.position)
+ *
+ * Cluster nodes themselves are top-level in xyflow (their `position` IS the
+ * cluster's absolute origin), so dragging a cluster simply passes through.
+ * Children's *schema-absolute* coordinates follow the cluster when the
+ * cluster moves — that's the intended behavior, identical to dragging the
+ * cluster in the editor.
+ */
+export function xyflowPositionToAbsolute(
+  position: { readonly x: number; readonly y: number },
+  parentAbsolutePosition?: { readonly x: number; readonly y: number },
+): { x: number; y: number } {
+  if (parentAbsolutePosition === undefined) {
+    return { x: position.x, y: position.y }
+  }
+  return {
+    x: position.x + parentAbsolutePosition.x,
+    y: position.y + parentAbsolutePosition.y,
+  }
+}
+
+/**
  * Test-only: reset the once-per-process warning flags so a test suite can
  * exercise the warning path multiple times. Not exported from the package's
  * public surface — internal to the renderer + its tests.

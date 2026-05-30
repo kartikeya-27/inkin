@@ -5,6 +5,7 @@ import {
   type InkinEdgeData,
   type InkinNodeData,
   translate,
+  xyflowPositionToAbsolute,
 } from '../../src/renderer/translate'
 import { parse } from '../../src/schema'
 
@@ -329,6 +330,63 @@ describe('translate() — warnings (once per process)', () => {
     expect(nodes[0]?.position).toEqual({ x: 42, y: -7 })
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+describe('xyflowPositionToAbsolute() — reverse of translate()s position conversion', () => {
+  it('passes through unchanged when no parent is provided (top-level node)', () => {
+    expect(xyflowPositionToAbsolute({ x: 42, y: -7 })).toEqual({ x: 42, y: -7 })
+  })
+
+  it('adds the parent cluster origin back when reversing a clustered child', () => {
+    expect(xyflowPositionToAbsolute({ x: 50, y: 25 }, { x: 100, y: 200 })).toEqual({
+      x: 150,
+      y: 225,
+    })
+  })
+
+  it('handles negative coordinates symmetrically', () => {
+    expect(xyflowPositionToAbsolute({ x: -10, y: -20 }, { x: -30, y: -40 })).toEqual({
+      x: -40,
+      y: -60,
+    })
+  })
+
+  it('round-trips both clustered and unclustered nodes through translate() within 1 px', () => {
+    // A diagram mixing clustered children with a top-level loose node. Every node
+    // must survive translate→reverse with a delta below 1 px from the original
+    // schema-absolute position. Anything larger is a bug in the math.
+    const source = parse({
+      schemaVersion: 1,
+      clusters: [
+        { id: 'left', label: 'left' },
+        { id: 'right', label: 'right' },
+      ],
+      nodes: [
+        { id: 'a', label: 'A', cluster: 'left', position: { x: 100, y: 100 } },
+        { id: 'b', label: 'B', cluster: 'left', position: { x: 200, y: 100 } },
+        { id: 'c', label: 'C', cluster: 'right', position: { x: 500, y: 250 } },
+        { id: 'loose', label: 'L', position: { x: -75, y: -200 } },
+      ],
+      edges: [],
+    })
+
+    const { nodes: xyNodes } = translate(source)
+    const clustersById = new Map(xyNodes.filter((n) => n.type === 'cluster').map((c) => [c.id, c]))
+
+    for (const original of source.nodes) {
+      const xyNode = xyNodes.find((n) => n.id === original.id)
+      expect(xyNode).toBeDefined()
+      if (xyNode === undefined) continue
+
+      const parent =
+        xyNode.parentId !== undefined ? clustersById.get(xyNode.parentId) : undefined
+      const recovered = xyflowPositionToAbsolute(xyNode.position, parent?.position)
+      const expected = original.position ?? { x: 0, y: 0 }
+
+      expect(Math.abs(recovered.x - expected.x)).toBeLessThan(1)
+      expect(Math.abs(recovered.y - expected.y)).toBeLessThan(1)
+    }
   })
 })
 
