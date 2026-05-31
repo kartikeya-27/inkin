@@ -191,7 +191,16 @@ function DiagramStudioInner({
   // signal that BaseNode / LabeledEdge use to decide between an
   // <EditableLabel> (editable) and a static <div> (read-only).
   if (!sync.isEditable) return renderer
-  return <EditingProvider dispatchSetField={sync.dispatchSetField}>{renderer}</EditingProvider>
+  return (
+    <EditingProvider
+      dispatchSetField={sync.dispatchSetField}
+      dispatchAddNode={sync.dispatchAddNode}
+      dispatchAddCluster={sync.dispatchAddCluster}
+      dispatchAssignCluster={sync.dispatchAssignCluster}
+    >
+      {renderer}
+    </EditingProvider>
+  )
 }
 
 /**

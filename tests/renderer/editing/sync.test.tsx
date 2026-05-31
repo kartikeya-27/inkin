@@ -527,3 +527,161 @@ describe('useFlowSync — read path: dagre auto-layout', () => {
     warn.mockRestore()
   })
 })
+
+// --- 0.4.0 dispatcher verbs --------------------------------------------------
+
+describe('useFlowSync — 0.4.0: dispatchAddNode', () => {
+  it('appends a node and fires exactly one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes).toHaveLength(3)
+    expect(next?.nodes[2]).toMatchObject({ id: 'z', label: 'Zed', shape: 'rect' })
+  })
+
+  it('honors explicit position, shape, and cluster', async () => {
+    const seed: DiagramInput = {
+      schemaVersion: 1,
+      clusters: [{ id: 'group', label: 'Group' }],
+      nodes: [{ id: 'x', label: 'X', cluster: 'group', position: { x: 0, y: 0 } }],
+      edges: [],
+    }
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: seed, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({
+        id: 'y',
+        label: 'Y',
+        position: { x: 99, y: 88 },
+        shape: 'terminal',
+        cluster: 'group',
+      })
+    })
+    await flush()
+    const added = onChange.mock.calls[0]?.[0]?.nodes?.find((n: { id: string }) => n.id === 'y')
+    expect(added).toMatchObject({
+      id: 'y',
+      label: 'Y',
+      shape: 'terminal',
+      position: { x: 99, y: 88 },
+      cluster: 'group',
+    })
+  })
+
+  it('does nothing when onChange is omitted (read-only mode)', async () => {
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual' }), {
+      wrapper: withStore,
+    })
+    expect(result.current.isEditable).toBe(false)
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+    })
+    await flush()
+    // No assertion needed beyond "did not throw"; no onChange to call.
+    expect(result.current.parsedDiagram?.nodes).toHaveLength(2)
+  })
+})
+
+describe('useFlowSync — 0.4.0: dispatchAddCluster', () => {
+  it('lazily creates the clusters array on a diagram without one', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    expect(result.current.parsedDiagram?.clusters).toBeUndefined()
+    act(() => {
+      result.current.dispatchAddCluster({ id: 'group', label: 'Group' })
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.clusters).toEqual([{ id: 'group', label: 'Group' }])
+  })
+})
+
+describe('useFlowSync — 0.4.0: dispatchAssignCluster', () => {
+  const clustered: DiagramInput = {
+    schemaVersion: 1,
+    clusters: [
+      { id: 'left', label: 'Left' },
+      { id: 'right', label: 'Right' },
+    ],
+    nodes: [
+      { id: 'a', label: 'A', cluster: 'left', position: { x: 0, y: 0 } },
+      { id: 'b', label: 'B', position: { x: 200, y: 0 } },
+    ],
+    edges: [],
+  }
+
+  it('reassigns a node from one cluster to another with one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('a', 'right')
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes?.find((n: { id: string }) => n.id === 'a')?.cluster).toBe('right')
+  })
+
+  it('unassigns when clusterId is undefined (strips the cluster field)', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('a', undefined)
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    const a = next?.nodes?.find((n: { id: string }) => n.id === 'a')
+    expect(a).toBeDefined()
+    expect(a).not.toHaveProperty('cluster')
+  })
+
+  it('assigns from unassigned (node had no cluster) to a real cluster', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('b', 'left')
+    })
+    await flush()
+    const b = onChange.mock.calls[0]?.[0]?.nodes?.find((n: { id: string }) => n.id === 'b')
+    expect(b?.cluster).toBe('left')
+  })
+})
+
+describe('useFlowSync — 0.4.0: microtask batching across new verbs', () => {
+  it('AddNode + SetField on the new node within the same tick collapse to one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+      result.current.dispatchSetField({ kind: 'node-label', id: 'z' }, 'Renamed')
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes?.find((n: { id: string }) => n.id === 'z')?.label).toBe('Renamed')
+  })
+})

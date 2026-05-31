@@ -18,7 +18,19 @@ import { type InkinValidationError, safeParse } from '../../schema/validate'
 import { useEditorStoreApi } from '../store'
 import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
-import type { Patch, SetFieldTarget } from './patches'
+import type { AddClusterPatch, AddNodePatch, Patch, SetFieldTarget } from './patches'
+
+/**
+ * Args for {@link UseFlowSyncResult.dispatchAddNode} — the AddNodePatch
+ * shape minus the `kind` discriminator, which the dispatcher fills in.
+ * Caller is responsible for minting `id` via `mintUniqueId(existing)` from
+ * `src/renderer/lib/id.ts` against the current schema's node ids; if a
+ * collision slips through, `safeParse` catches it.
+ */
+export type DispatchAddNodeArgs = Omit<AddNodePatch, 'kind'>
+
+/** Args for {@link UseFlowSyncResult.dispatchAddCluster}. Same id-collision contract as DispatchAddNodeArgs. */
+export type DispatchAddClusterArgs = Omit<AddClusterPatch, 'kind'>
 
 /**
  * `useFlowSync` — the controlled-state-sync hook that bridges the inkin
@@ -117,6 +129,30 @@ export interface UseFlowSyncResult {
    * schema's already-absolute coordinates.
    */
   readonly dispatchMoveNode: (nodeId: string, position: { x: number; y: number }) => void
+  /**
+   * Public face of `dispatchPatch` for the AddNode verb. 0.4.0's Palette
+   * `tools.ts` calls this when the user click-places a new node on the
+   * canvas. Multi-patch batches (e.g. AddNode + SetField on the new
+   * node's label) collapse into one `onChange` via the microtask
+   * dispatcher.
+   */
+  readonly dispatchAddNode: (args: DispatchAddNodeArgs) => void
+  /**
+   * Public face of `dispatchPatch` for the AddCluster verb. 0.4.0's
+   * Palette calls this when the user drag-rectangles a new cluster.
+   * The cluster materializes empty; re-parenting nodes is the
+   * Inspector's job (or cross-cluster drag).
+   */
+  readonly dispatchAddCluster: (args: DispatchAddClusterArgs) => void
+  /**
+   * Thin wrapper over the SetField dispatcher specifically for the
+   * "reassign or unassign" call site used by the Inspector's cluster
+   * dropdown and by cross-cluster drag detection. Pass `undefined` to
+   * unassign — the wrapper translates that to the documented empty-
+   * string sentinel that the SetField{node-cluster} reducer arm
+   * recognizes as "strip the field".
+   */
+  readonly dispatchAssignCluster: (nodeId: string, clusterId: string | undefined) => void
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -415,6 +451,44 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [dispatchPatch],
   )
 
+  /**
+   * AddNode verb — palette-driven node creation. The Palette mints the
+   * id and supplies any optional fields the click context resolved
+   * (e.g. `position` from the canvas click coordinates, `cluster` if
+   * the click landed inside a cluster's bounds).
+   */
+  const dispatchAddNode = useCallback(
+    (args: DispatchAddNodeArgs) => {
+      dispatchPatch({ kind: 'AddNode', ...args })
+    },
+    [dispatchPatch],
+  )
+
+  /** AddCluster verb — palette-driven cluster creation. Empty by design. */
+  const dispatchAddCluster = useCallback(
+    (args: DispatchAddClusterArgs) => {
+      dispatchPatch({ kind: 'AddCluster', ...args })
+    },
+    [dispatchPatch],
+  )
+
+  /**
+   * AssignCluster verb — narrow wrapper over SetField{node-cluster}.
+   * `undefined` clusterId maps to the documented empty-string sentinel
+   * the reducer recognizes as "strip the field". Used by the Inspector's
+   * cluster dropdown and by the Phase 9 cross-cluster drag detection.
+   */
+  const dispatchAssignCluster = useCallback(
+    (nodeId: string, clusterId: string | undefined) => {
+      dispatchPatch({
+        kind: 'SetField',
+        target: { kind: 'node-cluster', id: nodeId },
+        value: clusterId ?? '',
+      })
+    },
+    [dispatchPatch],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -434,6 +508,9 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     onEdgesDelete,
     dispatchSetField,
     dispatchMoveNode,
+    dispatchAddNode,
+    dispatchAddCluster,
+    dispatchAssignCluster,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

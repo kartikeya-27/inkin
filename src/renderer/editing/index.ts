@@ -18,6 +18,12 @@ export {
   type EditingProviderProps,
   useEditingActions,
 } from './EditingContext'
+export {
+  type EditorActions,
+  EditorActionsProvider,
+  type EditorActionsProviderProps,
+  useEditorActions,
+} from './EditorActionsContext'
 export type {
   AddClusterPatch,
   AddNodePatch,
@@ -30,5 +36,10 @@ export type {
   SetFieldPatch,
   SetFieldTarget,
 } from './patches'
-export type { UseFlowSyncOptions, UseFlowSyncResult } from './sync'
+export type {
+  DispatchAddClusterArgs,
+  DispatchAddNodeArgs,
+  UseFlowSyncOptions,
+  UseFlowSyncResult,
+} from './sync'
 export { useFlowSync } from './sync'
