@@ -1,0 +1,90 @@
+/*
+ * Button — shared toolbar / form action button. All colors source from the
+ * existing --inkin-* token vocabulary; no new tokens introduced.
+ *
+ * Three variants (default / primary / danger) compose via additional class
+ * names from the .tsx (`variantPrimary` / `variantDanger`); they override
+ * border + background only, leaving sizing and base layout to `.root`.
+ */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  background: var(--inkin-bg-node);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 120ms ease-out,
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.root:hover:not(:disabled) {
+  border-color: var(--inkin-border-node-strong);
+}
+
+.root:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--inkin-accent-primary);
+}
+
+.root:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* aria-pressed: toggle-button active state for the Palette tools. */
+.root[aria-pressed="true"] {
+  background: var(--inkin-accent-primary-soft);
+  border-color: var(--inkin-accent-primary);
+  color: var(--inkin-accent-primary);
+}
+
+/* --- Sizes --- */
+
+.sizeSm {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.sizeMd {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* --- Variants --- */
+
+.variantPrimary {
+  background: var(--inkin-accent-primary);
+  border-color: var(--inkin-accent-primary);
+  color: var(--inkin-bg-canvas);
+}
+
+.variantPrimary:hover:not(:disabled) {
+  background: var(--inkin-accent-primary);
+  border-color: var(--inkin-accent-primary);
+  opacity: 0.9;
+}
+
+.variantDanger {
+  border-color: var(--inkin-border-node-strong);
+  color: var(--inkin-text-primary);
+}
+
+.variantDanger:hover:not(:disabled) {
+  /* Subtle danger affordance without introducing a red token — the
+   * 0.4.0 plan said no new tokens; use the existing strong border to
+   * signal destructiveness on hover. */
+  border-color: var(--inkin-text-primary);
+}

@@ -1,0 +1,37 @@
+/*
+ * ErrorPanel — inline error banner shown inside the Inspector when a
+ * SetField dispatch fails validation. No new color tokens; uses the
+ * existing strong-border + text-secondary for a muted-warning look that
+ * doesn't introduce a red token (matches the "no new tokens for 0.4.0"
+ * decision).
+ */
+
+.root {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: var(--inkin-border-width-strong) solid var(--inkin-border-node-strong);
+  border-radius: var(--inkin-node-radius);
+  background: var(--inkin-bg-node);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.dismiss {
+  flex: 0 0 auto;
+  /* Override Button's default min-height for a tight ✕ in the panel corner. */
+  height: 20px;
+  width: 20px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}

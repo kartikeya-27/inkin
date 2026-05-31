@@ -1,0 +1,59 @@
+/*
+ * Select — native <select> with inkin chrome. The custom chevron is an
+ * inline SVG data-URI in background-image so we don't ship a separate
+ * asset; the colors in the SVG reference currentColor via the parent's
+ * computed color, so light theme inherits dark theme accent etc.
+ *
+ * The native dropdown popup is left alone — that's the OS / browser's
+ * job and overriding it is a UX trap.
+ */
+
+.root {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 28px 0 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--inkin-bg-canvas);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-sans);
+  font-size: 12px;
+  line-height: 1;
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+  /* Chevron drawn inline; uses the current text color via currentColor
+   * substitution (svg's `fill='currentColor'` ↔ the `color` property). */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
+}
+
+.root:hover:not(:disabled) {
+  border-color: var(--inkin-border-node-strong);
+}
+
+.root:focus {
+  border-color: var(--inkin-accent-primary);
+  box-shadow: 0 0 0 1px var(--inkin-accent-primary);
+}
+
+.root:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Native option styling — set explicit background/color so the dropdown
+ * doesn't inherit a transparent background from the styled select itself
+ * (Firefox + Safari quirk on dark themes). */
+.root option {
+  background: var(--inkin-bg-node);
+  color: var(--inkin-text-primary);
+}

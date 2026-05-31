@@ -1,0 +1,42 @@
+/*
+ * TextInput — form-field input. Visually consistent with EditableLabel's
+ * `.input` style but standalone (no parent text inheritance), used inside
+ * Inspector Fields where it has its own line.
+ */
+
+.root {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--inkin-bg-canvas);
+  color: var(--inkin-text-primary);
+  font-family: var(--inkin-font-sans);
+  font-size: 12px;
+  line-height: 1;
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  outline: none;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.root::placeholder {
+  color: var(--inkin-text-secondary);
+  opacity: 0.7;
+}
+
+.root:hover:not(:disabled) {
+  border-color: var(--inkin-border-node-strong);
+}
+
+.root:focus {
+  border-color: var(--inkin-accent-primary);
+  box-shadow: 0 0 0 1px var(--inkin-accent-primary);
+}
+
+.root:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
