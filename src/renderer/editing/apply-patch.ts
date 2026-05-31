@@ -1,5 +1,7 @@
 import type { Cluster, Diagram, Edge, Flow, Node } from '../../schema/types'
 import type {
+  AddClusterPatch,
+  AddNodePatch,
   ConnectEdgePatch,
   DeleteClusterPatch,
   DeleteEdgePatch,
@@ -51,6 +53,10 @@ export function applyPatch(diagram: Diagram, patch: Patch): Diagram {
       return applyDeleteCluster(diagram, patch)
     case 'SetField':
       return applySetField(diagram, patch)
+    case 'AddNode':
+      return applyAddNode(diagram, patch)
+    case 'AddCluster':
+      return applyAddCluster(diagram, patch)
   }
 }
 
@@ -235,7 +241,102 @@ function applySetField(diagram: Diagram, patch: SetFieldPatch): Diagram {
       )
       return { ...diagram, edges }
     }
+    case 'node-shape': {
+      // value is intended to be 'rect' | 'terminal'. The reducer assigns it
+      // raw; the dispatcher's `safeParse` gate rejects any other string
+      // before `onChange` fires, so we don't validate here (that'd double-
+      // gate and split the source of truth for the enum).
+      const id = patch.target.id
+      const shape = patch.value as 'rect' | 'terminal'
+      const nodes = diagram.nodes.map<Node>((node) => (node.id === id ? { ...node, shape } : node))
+      return { ...diagram, nodes }
+    }
+    case 'edge-style': {
+      // Same defense-in-depth split as node-shape: enum membership is
+      // enforced by safeParse, not by the reducer arm.
+      const id = patch.target.id
+      const style = patch.value as 'solid' | 'dashed'
+      const edges = diagram.edges.map<Edge>((edge) =>
+        effectiveEdgeId(edge) === id ? { ...edge, style } : edge,
+      )
+      return { ...diagram, edges }
+    }
+    case 'node-cluster': {
+      // Empty `value` is the documented "unassign" sentinel — strip the
+      // field entirely so the schema reads as "this node lives at the top
+      // level" rather than "this node belongs to a cluster named ''".
+      // Non-empty values that don't resolve to an existing cluster id are
+      // caught by `safeParse` upstream.
+      const id = patch.target.id
+      const nodes = diagram.nodes.map<Node>((node) => {
+        if (node.id !== id) return node
+        if (patch.value === '') {
+          const { cluster: _stripped, ...rest } = node
+          return rest as Node
+        }
+        return { ...node, cluster: patch.value }
+      })
+      return { ...diagram, nodes }
+    }
+    case 'cluster-label': {
+      // No-op when the cluster id doesn't resolve (cluster might have been
+      // deleted between the user opening the Inspector field and committing
+      // the edit). Returning the input diagram preserves array identity for
+      // downstream memoization, same as DeleteCluster's no-match branch.
+      if (diagram.clusters === undefined) return diagram
+      const id = patch.target.id
+      let changed = false
+      const clusters = diagram.clusters.map<Cluster>((cluster) => {
+        if (cluster.id !== id) return cluster
+        changed = true
+        return { ...cluster, label: patch.value }
+      })
+      if (!changed) return diagram
+      return { ...diagram, clusters }
+    }
   }
+}
+
+// --- AddNode -----------------------------------------------------------------
+
+/**
+ * Append a new node to the diagram. The caller is responsible for minting a
+ * collision-free `id`; if one slips through, the dispatcher's `safeParse`
+ * gate catches the duplicate via the schema's `superRefine` on id uniqueness.
+ *
+ * Optional fields (`position`, `shape`, `cluster`) follow the schema's
+ * defaults when omitted — the reducer omits them from the spread so the
+ * zod schema's `.default()` fills `shape: 'rect'`, and `position` / `cluster`
+ * stay absent (unrendered/unassigned).
+ */
+function applyAddNode(diagram: Diagram, patch: AddNodePatch): Diagram {
+  const next: Node = {
+    id: patch.id,
+    label: patch.label,
+    // The default 'rect' value comes from the schema, but we want the parsed
+    // diagram to carry the resolved shape (every Node in the reducer output
+    // has shape filled), so we materialize the default explicitly when the
+    // patch omits it.
+    shape: patch.shape ?? 'rect',
+    ...(patch.position !== undefined && { position: patch.position }),
+    ...(patch.cluster !== undefined && { cluster: patch.cluster }),
+  }
+  return { ...diagram, nodes: [...diagram.nodes, next] }
+}
+
+// --- AddCluster --------------------------------------------------------------
+
+/**
+ * Append an empty cluster to the diagram. The `clusters` array on the
+ * schema is optional; the reducer creates it lazily if the diagram has
+ * never had clusters before. The Inspector + cross-cluster drag are how
+ * nodes subsequently get reparented into the new cluster — this patch
+ * only creates the container.
+ */
+function applyAddCluster(diagram: Diagram, patch: AddClusterPatch): Diagram {
+  const next: Cluster = { id: patch.id, label: patch.label }
+  const clusters = diagram.clusters === undefined ? [next] : [...diagram.clusters, next]
+  return { ...diagram, clusters }
 }
 
 // Re-export shared types so tests don't need a parallel import path.

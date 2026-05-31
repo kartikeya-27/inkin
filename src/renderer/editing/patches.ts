@@ -1,20 +1,25 @@
 /**
  * The Patch discriminated union — the only shape a schema-mutating event can
- * take inside `@inkin/core@0.3.0`.
+ * take inside `@inkin/core`.
  *
  * Why a discriminated union (and not, say, a function-per-mutation): a single
  * `Patch` value is serializable, transport-friendly, and uniformly testable.
- * Every drag-end, connect, delete, and inline-edit-commit produces exactly one
- * Patch, which flows through {@link applyPatch} (pure reducer) and then
- * through `safeParse` (defense in depth) before reaching the consumer's
- * `onChange`. Future undo / redo (post-1.0) can stack Patches without a
- * second machinery.
+ * Every drag-end, connect, delete, inline-edit-commit, palette-add, and
+ * inspector-field-change produces exactly one Patch, which flows through
+ * {@link applyPatch} (pure reducer) and then through `safeParse` (defense in
+ * depth) before reaching the consumer's `onChange`. Future undo / redo
+ * (post-1.0) can stack Patches without a second machinery.
  *
- * 0.3.0 deliberately ships six variants only — the minimum for the canvas-
- * driven editing experience (drag, connect, delete, inline-edit). Variants
- * for shape, style, cluster assignment, palette-driven Add* operations, and
- * cluster rename land in 0.4.0 alongside the Inspector / Palette chrome that
- * actually surfaces them. Adding a variant later is a non-breaking change.
+ * **0.3.0** shipped six variants: the canvas-driven editing minimum (drag,
+ * connect, delete, inline-edit).
+ *
+ * **0.4.0** adds two new top-level variants — `AddNodePatch`, `AddClusterPatch`
+ * — for palette-driven creation, plus four new {@link SetFieldTarget} kinds
+ * — `node-shape`, `edge-style`, `node-cluster`, `cluster-label` — for
+ * Inspector-driven field edits and cross-cluster drag reassignment. The wire
+ * shape stays unified: SetField is still one variant with one reducer arm
+ * that switches on `target.kind`, so the dispatcher and consumer code stay
+ * narrow.
  *
  * Each variant carries the minimum data needed to mutate — not the whole
  * object. Identifiers are strings; positions are concrete `{ x, y }`. Keeping
@@ -98,10 +103,66 @@ export interface SetFieldPatch {
   readonly value: string
 }
 
+/**
+ * The address of a single editable field. `id` is the entity id (node id,
+ * edge id, or cluster id depending on `kind`).
+ *
+ * Value semantics per kind:
+ *   - `node-label` / `node-sublabel` / `edge-label` / `cluster-label` — the
+ *     `value` is the new text; empty string is valid (intentionally blank).
+ *   - `node-shape` — `value` must be one of `'rect'` / `'terminal'`. Other
+ *     strings parse-fail at the `safeParse` gate (defense in depth); reducer
+ *     trusts the value at assignment time.
+ *   - `edge-style` — `value` must be one of `'solid'` / `'dashed'`. Same
+ *     parse-time gate.
+ *   - `node-cluster` — `value` is the target cluster id; **empty string
+ *     unassigns the node from any cluster** (the reducer strips the field).
+ *     Setting to an unknown cluster id parse-fails.
+ */
 export type SetFieldTarget =
   | { readonly kind: 'node-label'; readonly id: string }
   | { readonly kind: 'node-sublabel'; readonly id: string }
   | { readonly kind: 'edge-label'; readonly id: string }
+  | { readonly kind: 'node-shape'; readonly id: string }
+  | { readonly kind: 'edge-style'; readonly id: string }
+  | { readonly kind: 'node-cluster'; readonly id: string }
+  | { readonly kind: 'cluster-label'; readonly id: string }
+
+/**
+ * Append a new node to the diagram. The caller (palette tools.ts) is
+ * responsible for minting `id` via the id factory and choosing default
+ * field values not specified here (the reducer applies the schema's default
+ * `shape: 'rect'` when omitted; `cluster` is optional and only set when the
+ * placement happened inside an existing cluster's bounds).
+ *
+ * `position` is optional but strongly recommended for palette-driven adds
+ * (the click coordinates) so the new node lands where the user clicked,
+ * not at `(0, 0)`.
+ */
+export interface AddNodePatch {
+  readonly kind: 'AddNode'
+  readonly id: string
+  readonly label: string
+  readonly position?: { readonly x: number; readonly y: number }
+  readonly shape?: 'rect' | 'terminal'
+  readonly cluster?: string
+}
+
+/**
+ * Append a new (empty) cluster to the diagram. The cluster starts with no
+ * children; `translate.ts`'s `EMPTY_CLUSTER_SIZE` fallback handles initial
+ * rendering. Re-parenting nodes into the new cluster happens via the
+ * Inspector's cluster dropdown or via cross-cluster drag-and-drop (both
+ * produce `SetField{ kind: 'node-cluster' }` patches).
+ *
+ * The `clusters` array on the schema is optional; the reducer creates it
+ * lazily if absent.
+ */
+export interface AddClusterPatch {
+  readonly kind: 'AddCluster'
+  readonly id: string
+  readonly label: string
+}
 
 export type Patch =
   | MoveNodePatch
@@ -110,3 +171,5 @@ export type Patch =
   | DeleteEdgePatch
   | DeleteClusterPatch
   | SetFieldPatch
+  | AddNodePatch
+  | AddClusterPatch

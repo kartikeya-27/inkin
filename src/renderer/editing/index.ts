@@ -19,6 +19,8 @@ export {
   useEditingActions,
 } from './EditingContext'
 export type {
+  AddClusterPatch,
+  AddNodePatch,
   ConnectEdgePatch,
   DeleteClusterPatch,
   DeleteEdgePatch,
