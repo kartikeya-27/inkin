@@ -4,10 +4,11 @@ Editable React diagrams from a typed schema. Published as the `@inkin/core` npm 
 
 > **You are here**: `@inkin/core@0.3.0` — the **editing release**. `<DiagramStudio>` now accepts an `onChange` prop for full in-place editing (drag, drag-to-connect, Delete-key cascade, double-click inline label editing, keyboard a11y). Omit `onChange` for byte-for-byte 0.2.0 read-only behavior. Inspector / Palette chrome lands in `0.4.0`. See [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.3.0)
+## What this gives you (today, at 0.4.0)
 
 - A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
 - **In-place editing when you supply `onChange`** — drag to move, drag handles to connect, Delete or Backspace to remove with cascade, double-click any label to edit it inline. Arrow-key nudges and Esc-cancel come for free. Same component, two visible UIs.
+- **Editor chrome auto-mounts in editable mode** (new in 0.4.0) — a contextual **Inspector** (label / sublabel / shape / cluster) and a **Palette** toolbar (Add Node / Add Cluster). Opt out per-panel via `inspector="off"` / `palette="off"`. Drag a node into a cluster to reassign it.
 - A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
 - Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
@@ -67,6 +68,8 @@ That's a complete read-only diagram with pan, zoom, and viewport controls. The w
 | `layout` | `'auto' \| 'manual'` | `'auto'` | `'auto'` runs dagre on any node without a `position`. `'manual'` trusts the diagram as-is. |
 | `minimap` | `boolean` | `false` | Show xyflow's minimap overlay. |
 | `controls` | `boolean` | `true` | Show xyflow's viewport controls (zoom in/out, fit-view). |
+| `inspector` | `'right' \| 'left' \| 'off'` | `'right'` editable / `'off'` read-only | Contextual editor panel position. New in 0.4.0. Renders fields per selection: label / sublabel / shape / cluster (nodes), label / style (edges), label (clusters). Multi-select shows shared values or a `multiple values` placeholder. |
+| `palette` | `'left' \| 'top' \| 'off'` | `'left'` editable / `'off'` read-only | Creation toolbar position. New in 0.4.0. Two tools: Add Node (click on canvas to place), Add Cluster. Esc cancels an armed tool. |
 | `className` | `string` | — | Appended to the wrapper element. |
 | `ref` | `Ref<DiagramStudioRef>` | — | Imperative handle exposing `toSvg(options?)`. |
 
@@ -138,9 +141,32 @@ What turns on with `onChange`:
 
 - **Drag** a node body to move it. Children stay inside their cluster (drag-end fires one `onChange`, no jitter during the drag).
 - **Drag from a node handle** to another node to create a labeled edge. Parallel edges get auto-generated explicit ids (`a->b#2`).
+- **Drag a node into a cluster's bounds** to reassign it (new in 0.4.0). MoveNode + cluster reassignment microtask-batch into one `onChange`.
 - **Click + Delete / Backspace** removes a node along with every incident edge (cascade) and prunes flows that reference removed edges.
 - **Double-click** a label, sublabel, or edge label to edit it inline. Enter or blur commits, Esc cancels. Empty strings are valid.
 - **Tab** to focus a node, **arrows** to nudge it by 10 px, **Enter** to edit its label, **Esc** to cancel-edit or clear selection.
+- **Inspector + Palette auto-mount** (new in 0.4.0). The Inspector reflects the current selection — type into a TextInput and press Enter to commit a label change; pick a dropdown to change shape / style / cluster. The Palette has Add Node + Add Cluster tools — click a tool, then click the canvas to place. Opt out per-panel:
+
+  ```tsx
+  <DiagramStudio value={diagram} onChange={setDiagram} inspector="off" />
+  ```
+
+### Editor chrome (Inspector + Palette)
+
+When you supply `onChange`, two panels mount on top of the canvas inside the same wrapper element:
+
+```
+┌─ palette ──────────────────────────────────────── inspector ─┐
+│  ┌───────────┐                                  ┌──────────┐ │
+│  │  + Node   │                                  │  NODE    │ │
+│  │  + Cluster│      [diagram canvas]            │  Label   │ │
+│  └───────────┘                                  │  Shape ▼ │ │
+│                                                 │  Cluster▼│ │
+│                                                 └──────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Both are absolute-positioned overlays inside the wrapper — they don't push the canvas around, and they auto-collapse to a bottom sheet on viewports narrower than 480 px. Pass `inspector="left"` / `palette="top"` to flip orientation, or `"off"` to suppress per panel. Explicit non-`"off"` values in read-only mode log a one-time `console.warn`.
 
 Every editing event flows through a pure schema reducer and is re-validated before `onChange` fires — invalid diagrams can never escape from the editor. Persistence is whatever your `onChange` does: a `useState`, a `localStorage.setItem`, a `fetch` to your backend — see the [examples app](examples/src/App.tsx) for a working playground.
 

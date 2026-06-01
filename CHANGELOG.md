@@ -12,6 +12,123 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
+## [0.4.0] — 2026-06-01
+
+The editor-chrome release. `<DiagramStudio>` in editable mode (with
+`onChange` provided) now auto-mounts a contextual Inspector panel and
+a creation Palette toolbar. Both can be repositioned or disabled
+per-prop. The 0.3.0 surface is preserved: a consumer who upgrades
+without supplying `onChange` sees zero behavior change; a consumer
+who already supplies `onChange` gets the chrome by default.
+
+### Added
+
+- **`<InspectorPanel>`** — selection-driven contextual editor. Routes
+  by priority (nodes > edges > clusters > nothing) and renders
+  fields per kind: NodeFields (label / sublabel / shape / cluster),
+  EdgeFields (label / style), ClusterFields (label), EmptyState.
+  Multi-select shows the shared value or a `multiple values`
+  placeholder when values differ; commit applies to every selected
+  entity, micro-batched into one `onChange`. Mounts as an absolute-
+  positioned overlay inside the `DiagramStudio` wrapper (no outer-
+  layout impact). Sub-480px viewports auto-swap to a bottom-sheet via
+  CSS media query.
+- **`<Palette>`** — creation toolbar with two tool buttons (Add Node,
+  Add Cluster). `aria-pressed` mirrors the active mode. Document-
+  level Esc + `visibilitychange` listeners reset to `idle` defensively
+  so an armed tool can't survive a tab switch or a stray click.
+- **Click-to-place** — when a Palette tool is armed, clicking on the
+  canvas pane projects the click via `screenToFlowPosition`, mints a
+  collision-free 6-char id, and dispatches `AddNode` (with `position`)
+  / `AddCluster`. Mode resets to `idle` after a successful placement.
+- **Cross-cluster drag-and-drop** — on `onNodeDragStop`, xyflow's
+  `getIntersectingNodes` runs, the smallest-area intersecting cluster
+  is picked, and a `SetField{node-cluster}` patch dispatches only
+  when the assignment changes. Microtask batching collapses the new
+  patch with the existing `MoveNode` into one `onChange`. Read-only /
+  no-op guards on every path.
+- **Two new `<DiagramStudio>` props**:
+  - `inspector?: 'right' | 'left' | 'off'` — defaults to `'right'`
+    when `onChange` is supplied, `'off'` when read-only.
+  - `palette?: 'left' | 'top' | 'off'` — defaults to `'left'` when
+    `onChange` is supplied, `'off'` when read-only.
+  - Explicit non-`'off'` value in read-only mode logs a one-time
+    `console.warn` so the misconfiguration isn't silent.
+- **Three new patch variants** behind the existing pure reducer:
+  - `AddNodePatch` — palette-driven node creation (id, label,
+    optional position / shape / cluster).
+  - `AddClusterPatch` — empty cluster creation (id, label).
+    Re-parenting nodes happens via the Inspector dropdown or
+    cross-cluster drag.
+  - Extended `SetFieldTarget` — four new `kind`s: `node-shape`,
+    `edge-style`, `node-cluster` (empty-string value unassigns),
+    `cluster-label`. Every existing 0.3.0 `SetField` call site
+    continues to work unchanged.
+- **Five internal-only UI primitives** at `src/renderer/ui/` —
+  `Field`, `TextInput`, `Select`, `Button`, `ErrorPanel`. NOT
+  re-exported from `src/index.ts`; consumers building their own
+  chrome style their own controls. `TextInput` mirrors
+  `EditableLabel`'s commit-on-blur/Enter pattern so typing in an
+  Inspector field never fires per-keystroke `onChange` calls.
+- **Hand-rolled id factory** at `src/renderer/lib/id.ts` — 6-char
+  alphanumeric IDs from a 56-char alphabet (base62 minus look-alikes:
+  `0/O/o/1/l/I`). Zero new runtime deps; statistical collision-
+  resistance gated by a 10,000-id test.
+
+### Changed
+
+- `<EditingProvider>` now mounts a sibling `<EditorActionsContext>`
+  internally exposing `dispatchSetField` / `dispatchAddNode` /
+  `dispatchAddCluster` / `dispatchAssignCluster`. The existing
+  `EditingContext` stays focused on the inline-label-edit state
+  machine. Both contexts share one provider boundary.
+- `InteractionSlice` — the deliberately-empty 0.3.0 stub is now
+  filled: `mode` (idle / placing-node / placing-cluster),
+  `placementOrigin`, `hoveredClusterId`, plus four explicit-verb
+  actions (`enterPlacementMode`, `exitPlacementMode`,
+  `setPlacementOrigin`, `setHoveredCluster`). All setters preserve
+  state identity on no-op writes so per-frame `onNodeDrag` ticks
+  don't trigger React re-renders.
+
+### Verified
+
+- 358 vitest tests (0.3.0: 187) + 22 Playwright e2e (0.3.0: 13).
+- Bundle: **inkin-only code 11.23 kB brotli** against a new 25 kB
+  ceiling (excludes react / xyflow / zustand / dagre / html-to-image
+  / zod). CSS: 4.45 kB brotli against 30 kB.
+- React surface (incl. xyflow + transitives): 131.63 kB ESM / 143.74
+  kB CJS — both well under the existing 200 kB ceiling.
+- Zero new runtime dependencies vs 0.3.0.
+- CSS Modules leak gate confirms no unhashed class names from
+  internal modules escape into `dist/styles.css`.
+- Consumer-install smoke (mirrors 0.3.0's Phase 16a): packed tarball
+  installed via `npm install file:…` into a fresh Vite+React+TS app;
+  Inspector + Palette + cross-cluster drag all exercised end-to-end.
+
+### Deferred
+
+- AddCluster bounds — the drag-rect placement gesture is consumed for
+  intent only; the rect coords aren't persisted on the schema in
+  0.4.0 (cluster materializes empty, user reparents via Inspector
+  dropdown or cross-cluster drag). Schema-side bounds storage lands
+  with the elkjs nested-cluster work in 1.2.0.
+- Cluster id rename + parent-cluster reassignment — ClusterFields
+  ships with the `label` field only in 0.4.0; id rename + parent
+  changes land in 0.5.0+ alongside the Mermaid bridge work.
+- Undo / redo — Patch reducer is already structurally undo-friendly
+  (every variant is invertible) but the history stack ships in
+  1.1.0 as planned.
+
+### Internal
+
+- New helper `pickClusterReassignment` (`src/renderer/editing/cross-cluster.ts`)
+  — pure decision function exhaustively unit-tested (10 branches)
+  instead of a flaky JSDOM intersection mock.
+- Subtle slide-in entrance animations on Inspector + Palette
+  (~180ms ease-out, dock-edge directionality, opt-out via
+  `prefers-reduced-motion: reduce`).
+- Styled scrollbar inside the Inspector body (thin, theme-aware).
+
 ## [0.3.0] — 2026-05-30
 
 The editing release. `<DiagramStudio>` accepts a new `onChange?: (next:
