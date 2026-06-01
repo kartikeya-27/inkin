@@ -67,13 +67,15 @@ export function LabeledEdge({
 
   const isDashed = data?.style === 'dashed'
   const labelText = data?.label
-  // Only render the label chip for non-empty labels — same in both
-  // read-only and editable modes. The italic placeholder slot for empty
-  // labels was confusing in editable mode (read as a real label that
-  // happened to be styled differently from "refine" / "release"); the
-  // Inspector's EdgeFields covers the "I want to add a label to this
-  // edge" flow without needing a canvas-side discovery affordance.
-  const shouldRenderLabel = labelText !== undefined && labelText.length > 0
+  // Editable mode renders the chip for every edge that has a `label`
+  // field, including the empty-string case (the slot the ConnectEdge
+  // patch seeds on a freshly-drawn edge). The chip carries the same
+  // opaque styling as "refine" / "release"; the user double-clicks to
+  // rename, matching the canvas-side editability of named edges.
+  // Read-only mode collapses to the 0.2.0 behavior — only non-empty
+  // labels render.
+  const shouldRenderLabel =
+    labelText !== undefined && (editing !== null ? true : labelText.length > 0)
 
   return (
     <>
