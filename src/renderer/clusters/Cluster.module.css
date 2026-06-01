@@ -54,6 +54,14 @@
 }
 
 .label {
+  /* Fill the header so dblclick anywhere along the 28-px strip triggers
+   * the inline-edit handler. Without this, EditableLabel's inline-block
+   * default leaves only ~50 px of clickable text — easy to miss. The
+   * header keeps `cursor: grab` for the padding margin; the label uses
+   * EditableLabel's `cursor: text` over the same area, which is the
+   * convention design tools already follow (text cursor over the
+   * editable region). */
+  flex: 1 1 auto;
   font-family: var(--inkin-font-mono);
   font-size: 11px;
   line-height: 1;
