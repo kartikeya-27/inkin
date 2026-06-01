@@ -28,23 +28,35 @@
   stroke-width: 2.5px;
 }
 
-/* Edge label takes a faint selection ring too so the user can tell whether
- * Tab landed on the edge vs the surrounding canvas. Lives on the label
- * div; doesn't require any wrapper restructure. */
+/* Edge label takes a soft accent halo when selected so the user can tell
+ * whether Tab landed on the edge vs the surrounding canvas, without
+ * reintroducing a hard rectangle outline on the label. */
 .labelSelected {
-  border-color: var(--inkin-accent-primary);
+  text-shadow:
+    0 0 4px var(--inkin-accent-primary),
+    0 0 2px var(--inkin-accent-primary);
 }
 
 .label {
   position: absolute;
   padding: 2px 6px;
-  background: var(--inkin-edge-label-bg);
   color: var(--inkin-edge-label-text);
   font-family: var(--inkin-font-mono);
   font-size: 11px;
   line-height: 1.3;
-  border-radius: 3px;
-  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  /* No background, no border — the edge line passes visibly through the
+   * label area instead of being chopped by an opaque box. Legibility
+   * comes from a stacked text-shadow halo using the canvas color: the
+   * line stays whole, and the text is masked behind the halo wherever
+   * it would otherwise overlap the line. Three layers stack into a
+   * tight, opaque ring around each glyph without the heavy blur a
+   * single large shadow would produce. */
+  background: transparent;
+  border: none;
+  text-shadow:
+    0 0 3px var(--inkin-bg-canvas),
+    0 0 3px var(--inkin-bg-canvas),
+    0 0 3px var(--inkin-bg-canvas);
   /* `pointer-events: all` so double-click on the label hits *this* div,
    * not xyflow's transparent .react-flow__edge-interaction SVG path that
    * sits over the edge midpoint and would otherwise eat the click. The
