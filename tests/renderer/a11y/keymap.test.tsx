@@ -55,7 +55,12 @@ function Harness({
   const wrapperRef = useRef<HTMLDivElement>(null)
   return (
     <InkinStoreProvider>
-      <EditingProvider dispatchSetField={dispatchSetField}>
+      <EditingProvider
+        dispatchSetField={dispatchSetField}
+        dispatchAddNode={vi.fn()}
+        dispatchAddCluster={vi.fn()}
+        dispatchAssignCluster={vi.fn()}
+      >
         <KeymapMount
           wrapperRef={wrapperRef}
           enabled={enabled}

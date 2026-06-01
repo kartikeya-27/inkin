@@ -1,0 +1,26 @@
+/* Empty-state placeholder inside the InspectorPanel. Tight vertical
+ * stack with a muted hint — visually distinct from a field form so
+ * the user knows "nothing selected" vs "select something and edit". */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px 8px;
+  text-align: center;
+  font-family: var(--inkin-font-sans);
+  color: var(--inkin-text-secondary);
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.hint {
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.8;
+}

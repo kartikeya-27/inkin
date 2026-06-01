@@ -19,6 +19,17 @@ export const Position = z.object({
 })
 export type Position = z.infer<typeof Position>
 
+/**
+ * Pixel dimensions in canvas units (zoom=1). New in 0.4.0 for Cluster.size —
+ * explicit cluster bounds let palette-placed clusters keep the size the user
+ * chose, instead of always deriving from the children's bounding box.
+ */
+export const Size = z.object({
+  width: z.number().positive().describe('Width in canvas units (pixels at zoom=1). Must be > 0.'),
+  height: z.number().positive().describe('Height in canvas units (pixels at zoom=1). Must be > 0.'),
+})
+export type Size = z.infer<typeof Size>
+
 export const NodeShape = z
   .enum(['rect', 'terminal'])
   .describe(
@@ -113,6 +124,26 @@ export const Cluster = z.object({
     .describe(
       'Optional id of a parent cluster for nesting. Must match an existing Cluster.id. Schema accepts nesting from 0.1.0 but renderers flatten it (with a console warning) until 1.2.0.',
     ),
+  /**
+   * 0.4.0 — Optional explicit position. When absent, the renderer derives the
+   * cluster's origin from the bounding box of its child nodes (the 0.2.0+
+   * default). When present, the renderer uses this directly and the children
+   * are positioned relative to it.
+   * Backwards-compatible: existing diagrams without this field render
+   * identically to 0.3.0.
+   */
+  position: Position.optional().describe(
+    'Optional explicit cluster origin. When absent, the renderer derives the cluster bounds from the bounding box of its child nodes (matching 0.2.0+ behavior). When present, the renderer uses this and the children are positioned relative to it.',
+  ),
+  /**
+   * 0.4.0 — Optional explicit size. Same backwards-compat contract as
+   * `position` — absent means "derive from children's bbox + padding",
+   * present means "use this size, children may overflow visually but
+   * xyflow's extent: 'parent' clips drag inside these bounds".
+   */
+  size: Size.optional().describe(
+    'Optional explicit cluster dimensions. When absent, size is derived from the children bbox + padding. When present, the cluster renders at exactly this size regardless of child layout.',
+  ),
 })
 export type Cluster = z.infer<typeof Cluster>
 

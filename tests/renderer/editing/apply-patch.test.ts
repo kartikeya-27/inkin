@@ -3,6 +3,7 @@ import type { Patch } from '../../../src/renderer/editing'
 import { applyPatch, effectiveEdgeId, pickConnectEdgeId } from '../../../src/renderer/editing'
 import { parse } from '../../../src/schema'
 import type { Diagram } from '../../../src/schema/types'
+import { safeParse } from '../../../src/schema/validate'
 
 /**
  * Reducer tests for `applyPatch`. Strategy:
@@ -309,6 +310,215 @@ describe('applyPatch — SetField', () => {
   })
 })
 
+// --- SetField (0.4.0 extensions) ---------------------------------------------
+
+describe('applyPatch — SetField (node-shape)', () => {
+  it('flips a node from rect to terminal', () => {
+    const next = applyPatch(triangle, {
+      kind: 'SetField',
+      target: { kind: 'node-shape', id: 'a' },
+      value: 'terminal',
+    })
+    expect(next.nodes.find((n) => n.id === 'a')?.shape).toBe('terminal')
+    expect(next.nodes.find((n) => n.id === 'b')?.shape).toBe('rect')
+    // Round-trips through the schema cleanly.
+    expect(parse(next).nodes.find((n) => n.id === 'a')?.shape).toBe('terminal')
+  })
+
+  it('rejects an invalid shape via safeParse (defense in depth)', () => {
+    const next = applyPatch(triangle, {
+      kind: 'SetField',
+      target: { kind: 'node-shape', id: 'a' },
+      // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid input to verify safeParse catches it
+      value: 'circle' as any,
+    })
+    const validation = safeParse(next)
+    expect(validation.success).toBe(false)
+  })
+})
+
+describe('applyPatch — SetField (edge-style)', () => {
+  it('flips an edge from solid to dashed by explicit id', () => {
+    const next = applyPatch(triangle, {
+      kind: 'SetField',
+      target: { kind: 'edge-style', id: 'a->b' },
+      value: 'dashed',
+    })
+    const target = next.edges.find((e) => effectiveEdgeId(e) === 'a->b')
+    expect(target?.style).toBe('dashed')
+  })
+})
+
+describe('applyPatch — SetField (node-cluster)', () => {
+  it('assigns a node to an existing cluster', () => {
+    const next = applyPatch(clustered, {
+      kind: 'SetField',
+      target: { kind: 'node-cluster', id: 'a' },
+      value: 'right',
+    })
+    expect(next.nodes.find((n) => n.id === 'a')?.cluster).toBe('right')
+    expect(safeParse(next).success).toBe(true)
+  })
+
+  it('strips the cluster field when value is the empty string', () => {
+    const next = applyPatch(clustered, {
+      kind: 'SetField',
+      target: { kind: 'node-cluster', id: 'a' },
+      value: '',
+    })
+    const target = next.nodes.find((n) => n.id === 'a')
+    expect(target).toBeDefined()
+    expect(target).not.toHaveProperty('cluster')
+  })
+
+  it('rejects assignment to an unknown cluster via safeParse', () => {
+    const next = applyPatch(clustered, {
+      kind: 'SetField',
+      target: { kind: 'node-cluster', id: 'a' },
+      value: 'nonexistent',
+    })
+    expect(safeParse(next).success).toBe(false)
+  })
+})
+
+describe('applyPatch — SetField (cluster-label)', () => {
+  it('renames a cluster by id', () => {
+    const next = applyPatch(clustered, {
+      kind: 'SetField',
+      target: { kind: 'cluster-label', id: 'left' },
+      value: 'Left side',
+    })
+    expect(next.clusters?.find((c) => c.id === 'left')?.label).toBe('Left side')
+  })
+
+  it('no-ops (preserves input identity) on unknown cluster id', () => {
+    const next = applyPatch(clustered, {
+      kind: 'SetField',
+      target: { kind: 'cluster-label', id: 'never-existed' },
+      value: 'ignored',
+    })
+    expect(next).toBe(clustered)
+  })
+
+  it('no-ops (preserves input identity) on a diagram with no clusters field', () => {
+    const next = applyPatch(triangle, {
+      kind: 'SetField',
+      target: { kind: 'cluster-label', id: 'left' },
+      value: 'ignored',
+    })
+    expect(next).toBe(triangle)
+  })
+})
+
+// --- AddNode -----------------------------------------------------------------
+
+describe('applyPatch — AddNode', () => {
+  it('appends a node with default shape and no position', () => {
+    const next = applyPatch(triangle, {
+      kind: 'AddNode',
+      id: 'd',
+      label: 'D',
+    })
+    expect(next.nodes).toHaveLength(4)
+    const added = next.nodes[3]
+    expect(added).toMatchObject({ id: 'd', label: 'D', shape: 'rect' })
+    expect(added).not.toHaveProperty('position')
+    expect(added).not.toHaveProperty('cluster')
+    expect(safeParse(next).success).toBe(true)
+  })
+
+  it('honors explicit position, shape, and cluster', () => {
+    const next = applyPatch(clustered, {
+      kind: 'AddNode',
+      id: 'd',
+      label: 'D',
+      position: { x: 500, y: 250 },
+      shape: 'terminal',
+      cluster: 'right',
+    })
+    const added = next.nodes.find((n) => n.id === 'd')
+    expect(added).toMatchObject({
+      id: 'd',
+      label: 'D',
+      shape: 'terminal',
+      position: { x: 500, y: 250 },
+      cluster: 'right',
+    })
+  })
+
+  it('preserves edge array identity when only nodes change', () => {
+    const next = applyPatch(triangle, {
+      kind: 'AddNode',
+      id: 'd',
+      label: 'D',
+    })
+    expect(next.edges).toBe(triangle.edges)
+  })
+
+  it('rejects a duplicate id via safeParse', () => {
+    const next = applyPatch(triangle, {
+      kind: 'AddNode',
+      id: 'a',
+      label: 'duplicate',
+    })
+    expect(safeParse(next).success).toBe(false)
+  })
+
+  it('rejects an unknown cluster reference via safeParse', () => {
+    const next = applyPatch(triangle, {
+      kind: 'AddNode',
+      id: 'd',
+      label: 'D',
+      cluster: 'nonexistent',
+    })
+    expect(safeParse(next).success).toBe(false)
+  })
+})
+
+// --- AddCluster --------------------------------------------------------------
+
+describe('applyPatch — AddCluster', () => {
+  it('appends to an existing clusters array', () => {
+    const next = applyPatch(clustered, {
+      kind: 'AddCluster',
+      id: 'top',
+      label: 'Top',
+    })
+    expect(next.clusters).toHaveLength(3)
+    expect(next.clusters?.find((c) => c.id === 'top')?.label).toBe('Top')
+    expect(safeParse(next).success).toBe(true)
+  })
+
+  it('lazily creates a clusters array on a diagram with no clusters', () => {
+    expect(triangle.clusters).toBeUndefined()
+    const next = applyPatch(triangle, {
+      kind: 'AddCluster',
+      id: 'only',
+      label: 'Only',
+    })
+    expect(next.clusters).toEqual([{ id: 'only', label: 'Only' }])
+  })
+
+  it('preserves nodes and edges array identity', () => {
+    const next = applyPatch(clustered, {
+      kind: 'AddCluster',
+      id: 'top',
+      label: 'Top',
+    })
+    expect(next.nodes).toBe(clustered.nodes)
+    expect(next.edges).toBe(clustered.edges)
+  })
+
+  it('rejects a duplicate cluster id via safeParse', () => {
+    const next = applyPatch(clustered, {
+      kind: 'AddCluster',
+      id: 'left',
+      label: 'duplicate',
+    })
+    expect(safeParse(next).success).toBe(false)
+  })
+})
+
 // --- Exhaustive switch -------------------------------------------------------
 
 describe('applyPatch — switch exhaustiveness', () => {
@@ -320,9 +530,11 @@ describe('applyPatch — switch exhaustiveness', () => {
       'DeleteEdge',
       'DeleteCluster',
       'SetField',
+      'AddNode',
+      'AddCluster',
     ]
     // Sanity check that this list is current — if a new variant ships without
     // an arm, the switch in `applyPatch` produces a TS error at build time.
-    expect(variants).toHaveLength(6)
+    expect(variants).toHaveLength(8)
   })
 })

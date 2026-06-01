@@ -1,0 +1,99 @@
+/*
+ * Palette toolbar. 0.4.0 fix: now a flex sibling of the canvas, not an
+ * absolute overlay. Intrinsic size (auto) so the surrounding flex
+ * container hands it exactly the space it needs. The position prop
+ * picks the orientation (vertical column for 'left', horizontal row
+ * for 'top') and the entrance animation direction.
+ *
+ * Phase 10 polish: subtle slide-in entrance matching the dock edge,
+ * `prefers-reduced-motion` opt-out, and a sub-480px responsive variant
+ * that swaps to a top row.
+ */
+
+.root {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--inkin-bg-node);
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  box-shadow: var(--inkin-shadow-node);
+  animation: inkinPaletteEnter 180ms ease-out;
+}
+
+.positionLeft {
+  flex-direction: column;
+  /* Don't stretch to the canvas's full height — sit at the top of the
+   * column so the visual matches "a small toolbar in the corner". */
+  align-self: flex-start;
+  animation-name: inkinPaletteEnterLeft;
+}
+
+.positionTop {
+  flex-direction: row;
+  /* Sit at the start of the horizontal axis so the toolbar reads as
+   * left-anchored rather than spanning the whole top edge. */
+  align-self: flex-start;
+  animation-name: inkinPaletteEnterTop;
+}
+
+@keyframes inkinPaletteEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes inkinPaletteEnterLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes inkinPaletteEnterTop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+  }
+}
+
+.tool {
+  /* Force consistent button widths so the toolbar reads as a tidy stack. */
+  min-width: 88px;
+  justify-content: flex-start;
+}
+
+/* Sub-480px viewports: the wrapper flips to column layout, so a left-
+ * positioned palette becomes the top row of that column. Convert its
+ * internal axis to row so the two tools sit side-by-side rather than
+ * stacked. The wrapper's `align-items: stretch` (flex default) makes
+ * the palette full-width here, which is what we want for narrow screens. */
+@media (max-width: 480px) {
+  .positionLeft {
+    flex-direction: row;
+    align-self: stretch;
+    justify-content: flex-start;
+  }
+  .tool {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+}

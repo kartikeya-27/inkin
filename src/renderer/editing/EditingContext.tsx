@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo } from 'react'
 import { useEditorStoreApi } from '../store'
 import type { EditTarget } from '../store/edit'
+import { EditorActionsProvider } from './EditorActionsContext'
 import type { UseFlowSyncResult } from './sync'
 
 /**
@@ -71,17 +72,43 @@ export function useEditingActions(): EditingActions | null {
 export interface EditingProviderProps {
   /**
    * The `dispatchSetField` function returned by `useFlowSync`. Wraps the
-   * internal patch dispatcher's SetField verb.
+   * internal patch dispatcher's SetField verb. Powers the inline-edit
+   * commit path (label / sublabel / edge-label) and is also passed
+   * through to {@link EditorActionsProvider} for Inspector field edits.
    */
   readonly dispatchSetField: UseFlowSyncResult['dispatchSetField']
+  /**
+   * New in 0.4.0 — forwarded to the {@link EditorActionsContext} mounted
+   * inside this provider for Palette-driven node creation.
+   */
+  readonly dispatchAddNode: UseFlowSyncResult['dispatchAddNode']
+  /**
+   * New in 0.4.0 — forwarded for Palette-driven cluster creation.
+   */
+  readonly dispatchAddCluster: UseFlowSyncResult['dispatchAddCluster']
+  /**
+   * New in 0.4.0 — forwarded for Inspector cluster dropdown changes and
+   * cross-cluster drag-and-drop reassignment.
+   */
+  readonly dispatchAssignCluster: UseFlowSyncResult['dispatchAssignCluster']
   readonly children: React.ReactNode
 }
 
 /**
- * Mount the EditingContext for the rendered tree. Only DiagramStudioInner
- * mounts this, and only when `useFlowSync` reports `isEditable: true`.
+ * Mount both editing-related contexts (inline-edit + general editor
+ * actions) for the rendered tree. Only DiagramStudioInner mounts this,
+ * and only when `useFlowSync` reports `isEditable: true`. Co-mounting
+ * means a single provider boundary covers `<EditableLabel>` (inline
+ * edits via {@link useEditingActions}) AND `<InspectorPanel>` /
+ * `<Palette>` (broader action verbs via {@link useEditorActions}).
  */
-export function EditingProvider({ dispatchSetField, children }: EditingProviderProps) {
+export function EditingProvider({
+  dispatchSetField,
+  dispatchAddNode,
+  dispatchAddCluster,
+  dispatchAssignCluster,
+  children,
+}: EditingProviderProps) {
   const storeApi = useEditorStoreApi()
 
   const actions = useMemo<EditingActions>(
@@ -112,5 +139,16 @@ export function EditingProvider({ dispatchSetField, children }: EditingProviderP
     [storeApi, dispatchSetField],
   )
 
-  return <EditingContext.Provider value={actions}>{children}</EditingContext.Provider>
+  return (
+    <EditingContext.Provider value={actions}>
+      <EditorActionsProvider
+        dispatchSetField={dispatchSetField}
+        dispatchAddNode={dispatchAddNode}
+        dispatchAddCluster={dispatchAddCluster}
+        dispatchAssignCluster={dispatchAssignCluster}
+      >
+        {children}
+      </EditorActionsProvider>
+    </EditingContext.Provider>
+  )
 }

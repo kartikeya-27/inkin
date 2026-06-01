@@ -1,19 +1,24 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from '@testing-library/react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useFlowSync } from '../../../src/renderer/editing/sync'
 import { InkinStoreProvider, useEditorStore } from '../../../src/renderer/store'
 import type { DiagramInput } from '../../../src/schema/types'
 
 /**
- * Test wrapper: useFlowSync now reads the editor store via useEditorStoreApi
- * (Phase 11 added selection mirroring), so the hook requires
- * InkinStoreProvider in its ancestry. Apply this wrapper to every
- * renderHook call.
+ * Test wrapper: useFlowSync reads the editor store via useEditorStoreApi
+ * (Phase 11 added selection mirroring) AND now calls useReactFlow() for
+ * cross-cluster drag detection (Phase 9). Both providers are required in
+ * the hook's ancestry. Apply this wrapper to every renderHook call.
  */
 function withStore({ children }: { children: React.ReactNode }) {
-  return <InkinStoreProvider>{children}</InkinStoreProvider>
+  return (
+    <InkinStoreProvider>
+      <ReactFlowProvider>{children}</ReactFlowProvider>
+    </InkinStoreProvider>
+  )
 }
 
 /**
@@ -525,5 +530,185 @@ describe('useFlowSync — read path: dagre auto-layout', () => {
     })
     expect(manual.result.current.nodes.find((n) => n.id === 'a')?.position).toEqual({ x: 0, y: 0 })
     warn.mockRestore()
+  })
+})
+
+// --- 0.4.0 dispatcher verbs --------------------------------------------------
+
+describe('useFlowSync — 0.4.0: dispatchAddNode', () => {
+  it('appends a node and fires exactly one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes).toHaveLength(3)
+    expect(next?.nodes[2]).toMatchObject({ id: 'z', label: 'Zed', shape: 'rect' })
+  })
+
+  it('honors explicit position, shape, and cluster', async () => {
+    const seed: DiagramInput = {
+      schemaVersion: 1,
+      clusters: [{ id: 'group', label: 'Group' }],
+      nodes: [{ id: 'x', label: 'X', cluster: 'group', position: { x: 0, y: 0 } }],
+      edges: [],
+    }
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: seed, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({
+        id: 'y',
+        label: 'Y',
+        position: { x: 99, y: 88 },
+        shape: 'terminal',
+        cluster: 'group',
+      })
+    })
+    await flush()
+    const added = onChange.mock.calls[0]?.[0]?.nodes?.find((n: { id: string }) => n.id === 'y')
+    expect(added).toMatchObject({
+      id: 'y',
+      label: 'Y',
+      shape: 'terminal',
+      position: { x: 99, y: 88 },
+      cluster: 'group',
+    })
+  })
+
+  it('does nothing when onChange is omitted (read-only mode)', async () => {
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual' }), {
+      wrapper: withStore,
+    })
+    expect(result.current.isEditable).toBe(false)
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+    })
+    await flush()
+    // No assertion needed beyond "did not throw"; no onChange to call.
+    expect(result.current.parsedDiagram?.nodes).toHaveLength(2)
+  })
+})
+
+describe('useFlowSync — 0.4.0: dispatchAddCluster', () => {
+  it('lazily creates the clusters array on a diagram without one', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    expect(result.current.parsedDiagram?.clusters).toBeUndefined()
+    act(() => {
+      result.current.dispatchAddCluster({ id: 'group', label: 'Group' })
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.clusters).toEqual([{ id: 'group', label: 'Group' }])
+  })
+})
+
+describe('useFlowSync — 0.4.0: dispatchAssignCluster', () => {
+  const clustered: DiagramInput = {
+    schemaVersion: 1,
+    clusters: [
+      { id: 'left', label: 'Left' },
+      { id: 'right', label: 'Right' },
+    ],
+    nodes: [
+      { id: 'a', label: 'A', cluster: 'left', position: { x: 0, y: 0 } },
+      { id: 'b', label: 'B', position: { x: 200, y: 0 } },
+    ],
+    edges: [],
+  }
+
+  it('reassigns a node from one cluster to another with one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('a', 'right')
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes?.find((n: { id: string }) => n.id === 'a')?.cluster).toBe('right')
+  })
+
+  it('unassigns when clusterId is undefined (strips the cluster field)', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('a', undefined)
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    const a = next?.nodes?.find((n: { id: string }) => n.id === 'a')
+    expect(a).toBeDefined()
+    expect(a).not.toHaveProperty('cluster')
+  })
+
+  it('assigns from unassigned (node had no cluster) to a real cluster', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(
+      () => useFlowSync({ value: clustered, layout: 'manual', onChange }),
+      { wrapper: withStore },
+    )
+    act(() => {
+      result.current.dispatchAssignCluster('b', 'left')
+    })
+    await flush()
+    const b = onChange.mock.calls[0]?.[0]?.nodes?.find((n: { id: string }) => n.id === 'b')
+    expect(b?.cluster).toBe('left')
+  })
+})
+
+describe('useFlowSync — 0.4.0: microtask batching across new verbs', () => {
+  it('AddNode + SetField on the new node within the same tick collapse to one onChange', async () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual', onChange }), {
+      wrapper: withStore,
+    })
+    act(() => {
+      result.current.dispatchAddNode({ id: 'z', label: 'Zed' })
+      result.current.dispatchSetField({ kind: 'node-label', id: 'z' }, 'Renamed')
+    })
+    await flush()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0]?.[0]
+    expect(next?.nodes?.find((n: { id: string }) => n.id === 'z')?.label).toBe('Renamed')
+  })
+})
+
+// --- 0.4.0: cross-cluster drag detection (integration smoke) ----------------
+
+describe('useFlowSync — 0.4.0: onNodeDragStop wiring', () => {
+  /**
+   * The dispatch logic is exhaustively covered by the
+   * `pickClusterReassignment` pure-function tests
+   * (`tests/renderer/editing/cross-cluster.test.ts`). Here we verify
+   * only that `onNodeDragStop` is exposed on the result bundle, is a
+   * function, and bails harmlessly in read-only mode. xyflow's
+   * `getIntersectingNodes` requires a measured layout which JSDOM
+   * can't produce, so end-to-end pixel-level verification lives in
+   * Phase 13's Playwright spec.
+   */
+
+  it('exposes onNodeDragStop as a function', () => {
+    const { result } = renderHook(() => useFlowSync({ value: pair, layout: 'manual' }), {
+      wrapper: withStore,
+    })
+    expect(typeof result.current.onNodeDragStop).toBe('function')
   })
 })

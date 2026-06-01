@@ -74,8 +74,12 @@ test.describe('inline-edit — node label', () => {
 
     const input = page.getByLabel('label for node a')
     await input.fill('Blurred commit')
-    // Click elsewhere to blur the input.
-    await page.locator('.react-flow__pane').click({ position: { x: 30, y: 30 } })
+    // Click elsewhere to blur the input. Click in the middle-bottom of
+    // the pane to avoid the Palette overlay (left edge) and the
+    // Inspector overlay (right edge) that the 0.4.0 chrome adds.
+    const paneBox = await page.locator('.react-flow__pane').boundingBox()
+    if (paneBox === null) throw new Error('pane bbox missing')
+    await page.mouse.click(paneBox.x + paneBox.width / 2, paneBox.y + paneBox.height - 40)
 
     await expect(input).not.toBeVisible()
     await expect(labelA).toHaveText('Blurred commit')

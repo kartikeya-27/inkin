@@ -130,3 +130,87 @@ describe('<DiagramStudio>', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+// --- 0.4.0: inspector / palette chrome -----------------------------------------
+
+describe('<DiagramStudio> — 0.4.0 inspector + palette chrome', () => {
+  it('mounts no Inspector and no Palette in read-only mode (no onChange)', () => {
+    const { queryByTestId } = render(<DiagramStudio value={validDiagram} />)
+    expect(queryByTestId('inkin-inspector')).toBeNull()
+    expect(queryByTestId('inkin-palette')).toBeNull()
+  })
+
+  it('mounts both Inspector and Palette by default when onChange is provided', () => {
+    const onChange = vi.fn()
+    const { getByTestId } = render(<DiagramStudio value={validDiagram} onChange={onChange} />)
+    expect(getByTestId('inkin-inspector')).toBeInTheDocument()
+    expect(getByTestId('inkin-palette')).toBeInTheDocument()
+  })
+
+  it('inspector="off" hides only the Inspector', () => {
+    const onChange = vi.fn()
+    const { queryByTestId, getByTestId } = render(
+      <DiagramStudio value={validDiagram} onChange={onChange} inspector="off" />,
+    )
+    expect(queryByTestId('inkin-inspector')).toBeNull()
+    expect(getByTestId('inkin-palette')).toBeInTheDocument()
+  })
+
+  it('palette="off" hides only the Palette', () => {
+    const onChange = vi.fn()
+    const { queryByTestId, getByTestId } = render(
+      <DiagramStudio value={validDiagram} onChange={onChange} palette="off" />,
+    )
+    expect(queryByTestId('inkin-palette')).toBeNull()
+    expect(getByTestId('inkin-inspector')).toBeInTheDocument()
+  })
+
+  it('palette="top" applies the positionTop class', () => {
+    const onChange = vi.fn()
+    const { getByTestId } = render(
+      <DiagramStudio value={validDiagram} onChange={onChange} palette="top" />,
+    )
+    expect(getByTestId('inkin-palette').className).toMatch(/positionTop/)
+  })
+
+  it('inspector="left" applies the positionLeft class', () => {
+    const onChange = vi.fn()
+    const { getByTestId } = render(
+      <DiagramStudio value={validDiagram} onChange={onChange} inspector="left" />,
+    )
+    expect(getByTestId('inkin-inspector').className).toMatch(/positionLeft/)
+  })
+
+  it('warns once when chrome is explicitly enabled without onChange', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { queryByTestId, rerender } = render(
+      <DiagramStudio value={validDiagram} inspector="right" />,
+    )
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/inspector.*palette/i)
+    // Panels still don't render — read-only mode doesn't mount the providers.
+    expect(queryByTestId('inkin-inspector')).toBeNull()
+
+    // Re-rendering with the same props does not re-warn (one per instance).
+    rerender(<DiagramStudio value={validDiagram} inspector="right" />)
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('does not warn when chrome is explicitly OFF in read-only mode', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(<DiagramStudio value={validDiagram} inspector="off" palette="off" />)
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('does not warn in editable mode regardless of chrome props', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onChange = vi.fn()
+    render(
+      <DiagramStudio value={validDiagram} onChange={onChange} inspector="right" palette="left" />,
+    )
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})

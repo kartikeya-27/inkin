@@ -7,18 +7,35 @@ import {
   type NodeChange,
   type OnConnect,
   type OnEdgesChange,
+  type OnNodeDrag,
   type OnNodesChange,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { dagreLayout } from '../../schema/layout'
 import type { Diagram, DiagramInput } from '../../schema/types'
 import { type InkinValidationError, safeParse } from '../../schema/validate'
+import { handlePlacementClick } from '../palette/tools'
 import { useEditorStoreApi } from '../store'
 import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
-import type { Patch, SetFieldTarget } from './patches'
+import { pickClusterReassignment } from './cross-cluster'
+import type { AddClusterPatch, AddNodePatch, Patch, SetFieldTarget } from './patches'
+
+/**
+ * Args for {@link UseFlowSyncResult.dispatchAddNode} — the AddNodePatch
+ * shape minus the `kind` discriminator, which the dispatcher fills in.
+ * Caller is responsible for minting `id` via `mintUniqueId(existing)` from
+ * `src/renderer/lib/id.ts` against the current schema's node ids; if a
+ * collision slips through, `safeParse` catches it.
+ */
+export type DispatchAddNodeArgs = Omit<AddNodePatch, 'kind'>
+
+/** Args for {@link UseFlowSyncResult.dispatchAddCluster}. Same id-collision contract as DispatchAddNodeArgs. */
+export type DispatchAddClusterArgs = Omit<AddClusterPatch, 'kind'>
 
 /**
  * `useFlowSync` — the controlled-state-sync hook that bridges the inkin
@@ -117,6 +134,56 @@ export interface UseFlowSyncResult {
    * schema's already-absolute coordinates.
    */
   readonly dispatchMoveNode: (nodeId: string, position: { x: number; y: number }) => void
+  /**
+   * Public face of `dispatchPatch` for the AddNode verb. 0.4.0's Palette
+   * `tools.ts` calls this when the user click-places a new node on the
+   * canvas. Multi-patch batches (e.g. AddNode + SetField on the new
+   * node's label) collapse into one `onChange` via the microtask
+   * dispatcher.
+   */
+  readonly dispatchAddNode: (args: DispatchAddNodeArgs) => void
+  /**
+   * Public face of `dispatchPatch` for the AddCluster verb. 0.4.0's
+   * Palette calls this when the user drag-rectangles a new cluster.
+   * The cluster materializes empty; re-parenting nodes is the
+   * Inspector's job (or cross-cluster drag).
+   */
+  readonly dispatchAddCluster: (args: DispatchAddClusterArgs) => void
+  /**
+   * Thin wrapper over the SetField dispatcher specifically for the
+   * "reassign or unassign" call site used by the Inspector's cluster
+   * dropdown and by cross-cluster drag detection. Pass `undefined` to
+   * unassign — the wrapper translates that to the documented empty-
+   * string sentinel that the SetField{node-cluster} reducer arm
+   * recognizes as "strip the field".
+   */
+  readonly dispatchAssignCluster: (nodeId: string, clusterId: string | undefined) => void
+  /**
+   * Pass to `<ReactFlow onNodeDragStop>`. Compares the dropped node's
+   * post-drag intersection set (via xyflow's `getIntersectingNodes`)
+   * against its current `cluster` field in the schema, and dispatches
+   * `SetField{node-cluster}` only when they differ. The dispatch
+   * micro-batches with the `MoveNode` already queued by
+   * `onNodesChange`, so the net effect on the consumer is one
+   * `onChange` carrying both the new position AND the new cluster
+   * assignment.
+   *
+   * Pick policy when the dropped node intersects multiple clusters:
+   * smallest-area wins (the most specific containment). Defensive
+   * fallback if measurements are missing: first match.
+   */
+  readonly onNodeDragStop: OnNodeDrag<Node>
+  /**
+   * Pass to `<ReactFlow onPaneClick>`. When the InteractionSlice is in
+   * a `placing-*` mode (Palette tool armed), the click is translated
+   * from screen to flow coordinates via xyflow's `screenToFlowPosition`,
+   * a fresh id is minted, and the matching `AddNode` / `AddCluster`
+   * patch fires through the dispatcher. Mode resets to `idle` after a
+   * successful placement so the next click behaves normally. In
+   * `idle` mode the handler is a no-op — pane clicks fall through to
+   * xyflow's default selection-clear behavior.
+   */
+  readonly onPaneClick: (event: ReactMouseEvent) => void
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -149,6 +216,10 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
   const { value, layout = 'auto', onChange } = options
   const isEditable = onChange !== undefined
   const storeApi = useEditorStoreApi()
+  // xyflow's spatial index for cross-cluster drag detection (Phase 9).
+  // Requires ReactFlowProvider in the ancestry — DiagramStudio mounts it
+  // wrapping DiagramStudioInner, which is where useFlowSync runs.
+  const reactFlow = useReactFlow()
 
   // --- Read path: parse + translate, seed xyflow's local state ------------
 
@@ -297,38 +368,93 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
       _setNodes((current) => applyNodeChanges(changes, current))
 
       // Mirror xyflow's selection into our SelectionSlice so the keymap +
-      // EditableLabel + future Inspector can read selection via Zustand
-      // selectors without subscribing to xyflow's internal store. We
-      // batch the selection change events in this tick into a single
-      // setSelection call (avoids N store writes for a marquee-select).
-      let nextSelection: Set<string> | null = null
+      // EditableLabel + Inspector can read selection via Zustand selectors
+      // without subscribing to xyflow's internal store.
+      //
+      // 0.4.0 (Phase 18): route by xyflow node type — cluster ids land in
+      // `selectedClusterIds`, everything else in `selectedNodeIds`. The
+      // InspectorPanel routes to ClusterFields vs NodeFields based on
+      // which Set the id is in, so a wrong-bucket mirror breaks the
+      // cluster Inspector path.
+      let nodesDelta: Map<string, boolean> | null = null
+      let clustersDelta: Map<string, boolean> | null = null
+      const xyNodesForSelection = nodesRef.current
       for (const change of changes) {
         if (change.type === 'select') {
-          if (nextSelection === null) {
-            nextSelection = new Set(storeApi.getState().selectedNodeIds)
+          const node = xyNodesForSelection.find((n) => n.id === change.id)
+          const isCluster = node?.type === 'cluster'
+          if (isCluster) {
+            clustersDelta ??= new Map()
+            clustersDelta.set(change.id, change.selected)
+          } else {
+            nodesDelta ??= new Map()
+            nodesDelta.set(change.id, change.selected)
           }
-          if (change.selected) nextSelection.add(change.id)
-          else nextSelection.delete(change.id)
         }
       }
-      if (nextSelection !== null) {
-        storeApi.getState().setSelection({ nodes: nextSelection })
+      if (nodesDelta !== null || clustersDelta !== null) {
+        const state = storeApi.getState()
+        const update: {
+          nodes?: ReadonlySet<string>
+          clusters?: ReadonlySet<string>
+        } = {}
+        if (nodesDelta !== null) {
+          const next = new Set(state.selectedNodeIds)
+          for (const [id, selected] of nodesDelta) {
+            if (selected) next.add(id)
+            else next.delete(id)
+          }
+          update.nodes = next
+        }
+        if (clustersDelta !== null) {
+          const next = new Set(state.selectedClusterIds)
+          for (const [id, selected] of clustersDelta) {
+            if (selected) next.add(id)
+            else next.delete(id)
+          }
+          update.clusters = next
+        }
+        state.setSelection(update)
       }
 
       if (!isEditable) return
 
       for (const change of changes) {
         if (change.type === 'position' && change.dragging === false && change.position) {
-          // Drag-end. Convert xyflow's (possibly cluster-relative) position
-          // back to schema-absolute using the cluster's xyflow origin.
+          // Drag-end. Two paths:
+          //   - regular node → MoveNode (with cluster-relative→absolute fixup
+          //     when the dragged node has a parent cluster)
+          //   - cluster      → MoveCluster (Phase 19 — clusters carry their
+          //     own position now)
           const xyNodes = nodesRef.current
           const node = xyNodes.find((n) => n.id === change.id)
           if (node === undefined) continue
+          if (node.type === 'cluster') {
+            // Clusters are always top-level in xyflow (no parentId), so the
+            // dragged position is already absolute.
+            dispatchPatch({
+              kind: 'MoveCluster',
+              clusterId: change.id,
+              position: { x: change.position.x, y: change.position.y },
+            })
+            continue
+          }
           const parent = node.parentId ? xyNodes.find((n) => n.id === node.parentId) : undefined
           const absolute = xyflowPositionToAbsolute(change.position, parent?.position)
           dispatchPatch({ kind: 'MoveNode', nodeId: change.id, position: absolute })
         } else if (change.type === 'remove') {
-          dispatchPatch({ kind: 'DeleteNode', nodeId: change.id })
+          // 0.4.0 (Phase 18): dispatch DeleteCluster vs DeleteNode by type.
+          // The schema's `DeleteCluster` reducer arm strips the `cluster`
+          // field from child nodes (cascade), so children stay in the
+          // diagram as top-level nodes — same contract Excalidraw uses
+          // for frame deletion.
+          const xyNodes = nodesRef.current
+          const node = xyNodes.find((n) => n.id === change.id)
+          if (node?.type === 'cluster') {
+            dispatchPatch({ kind: 'DeleteCluster', clusterId: change.id })
+          } else {
+            dispatchPatch({ kind: 'DeleteNode', nodeId: change.id })
+          }
         }
         // Other change types (`select`, `dimensions`, `position` with
         // `dragging: true`, `add`, `replace`) stay local — no patch.
@@ -415,6 +541,160 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [dispatchPatch],
   )
 
+  /**
+   * AddNode verb — palette-driven node creation. The Palette mints the
+   * id and supplies any optional fields the click context resolved
+   * (e.g. `position` from the canvas click coordinates, `cluster` if
+   * the click landed inside a cluster's bounds).
+   *
+   * Phase 20: the new node becomes the only selected entity so the
+   * Inspector opens with its fields populated — "I just added a node,
+   * now I want to rename it" lands without the user having to find
+   * the new node on the canvas first.
+   */
+  const dispatchAddNode = useCallback(
+    (args: DispatchAddNodeArgs) => {
+      dispatchPatch({ kind: 'AddNode', ...args })
+      storeApi.getState().setSelection({
+        nodes: new Set([args.id]),
+        edges: new Set<string>(),
+        clusters: new Set<string>(),
+      })
+    },
+    [dispatchPatch, storeApi],
+  )
+
+  /**
+   * AddCluster verb — palette-driven cluster creation. Empty by design.
+   * Phase 20: the new cluster is selected so the Inspector routes to
+   * ClusterFields immediately for the inevitable rename.
+   */
+  const dispatchAddCluster = useCallback(
+    (args: DispatchAddClusterArgs) => {
+      dispatchPatch({ kind: 'AddCluster', ...args })
+      storeApi.getState().setSelection({
+        nodes: new Set<string>(),
+        edges: new Set<string>(),
+        clusters: new Set([args.id]),
+      })
+    },
+    [dispatchPatch, storeApi],
+  )
+
+  /**
+   * AssignCluster verb — narrow wrapper over SetField{node-cluster}.
+   * `undefined` clusterId maps to the documented empty-string sentinel
+   * the reducer recognizes as "strip the field". Used by the Inspector's
+   * cluster dropdown and by the Phase 9 cross-cluster drag detection.
+   */
+  const dispatchAssignCluster = useCallback(
+    (nodeId: string, clusterId: string | undefined) => {
+      dispatchPatch({
+        kind: 'SetField',
+        target: { kind: 'node-cluster', id: nodeId },
+        value: clusterId ?? '',
+      })
+    },
+    [dispatchPatch],
+  )
+
+  // --- Cross-cluster drag detection (Phase 9) -----------------------------
+
+  /**
+   * On drag-end: compute the intersection set against the dropped node,
+   * delegate the cluster-pick decision to {@link pickClusterReassignment}
+   * (pure helper, unit-tested independently), and dispatch
+   * `SetField{node-cluster}` only when the decision actually changes the
+   * assignment. The dispatcher's microtask batches this with the
+   * `MoveNode` already queued by `onNodesChange`, so the consumer sees
+   * one `onChange` carrying both the new position and the new cluster.
+   *
+   * Read-only / no-onChange guard: dispatchers no-op when `!isEditable`,
+   * but bailing here also saves the spatial query.
+   */
+  const onNodeDragStop = useCallback<OnNodeDrag<Node>>(
+    (_event, droppedNode) => {
+      if (!isEditable) return
+      const parsed = parsedRef.current
+      if (parsed === null) return
+
+      const intersecting = reactFlow.getIntersectingNodes(droppedNode)
+      const decision = pickClusterReassignment(droppedNode.id, intersecting, parsed)
+      if (decision === null) return
+
+      dispatchPatch({
+        kind: 'SetField',
+        target: { kind: 'node-cluster', id: droppedNode.id },
+        value: decision.newCluster,
+      })
+    },
+    [isEditable, reactFlow, dispatchPatch],
+  )
+
+  // --- Palette placement click handler (Phase 7/8 completion) -------------
+
+  /**
+   * Canvas pane click handler. When the InteractionSlice is in a
+   * `placing-*` mode, projects the click coordinates from screen space
+   * into flow space (xyflow's `screenToFlowPosition`) and delegates to
+   * the pure `handlePlacementClick` helper which mints an id, dispatches
+   * the matching Add patch, and exits placement mode. In `idle` mode,
+   * no-op so xyflow's default pane-click behavior (clear selection) stays
+   * intact.
+   */
+  const onPaneClick = useCallback(
+    (event: ReactMouseEvent) => {
+      if (!isEditable) return
+      const parsed = parsedRef.current
+      if (parsed === null) return
+      const state = storeApi.getState()
+      if (state.mode === 'idle') return
+
+      const point = reactFlow.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+
+      // 0.4.0 (Phase 18): if the click landed inside an existing cluster's
+      // bounds, the new node should be parented into it so the Palette
+      // behaves the same as Inspector's "Cluster" dropdown. Query xyflow's
+      // spatial index with a 1×1 rect at the click — anything we get back
+      // overlaps the click point. Pick the smallest-area intersecting
+      // cluster (most specific containment) per the Phase 9 policy.
+      let parentClusterId: string | undefined
+      if (state.mode === 'placing-node') {
+        const intersecting = reactFlow.getIntersectingNodes({
+          x: point.x,
+          y: point.y,
+          width: 1,
+          height: 1,
+        })
+        let smallestArea = Number.POSITIVE_INFINITY
+        for (const candidate of intersecting) {
+          if (candidate.type !== 'cluster') continue
+          const w = candidate.measured?.width ?? candidate.width ?? Number.POSITIVE_INFINITY
+          const h = candidate.measured?.height ?? candidate.height ?? Number.POSITIVE_INFINITY
+          const area = w * h
+          if (area < smallestArea) {
+            smallestArea = area
+            parentClusterId = candidate.id
+          }
+        }
+      }
+
+      handlePlacementClick({
+        mode: state.mode,
+        point,
+        diagram: parsed,
+        dispatchAddNode,
+        dispatchAddCluster,
+        exitPlacementMode: state.exitPlacementMode,
+        ...(parentClusterId !== undefined && { parentClusterId }),
+      })
+    },
+    [isEditable, reactFlow, storeApi, dispatchAddNode, dispatchAddCluster],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -434,6 +714,11 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     onEdgesDelete,
     dispatchSetField,
     dispatchMoveNode,
+    dispatchAddNode,
+    dispatchAddCluster,
+    dispatchAssignCluster,
+    onNodeDragStop,
+    onPaneClick,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

@@ -67,10 +67,13 @@ export function LabeledEdge({
 
   const isDashed = data?.style === 'dashed'
   const labelText = data?.label
-  // Render the label slot whenever a label exists (including the empty
-  // string case — that's how a consumer signals "I want an editable
-  // empty slot"). In read-only mode this collapses to the original 0.2.0
-  // behavior (label only shown when non-empty).
+  // Editable mode renders the chip for every edge that has a `label`
+  // field, including the empty-string case (the slot the ConnectEdge
+  // patch seeds on a freshly-drawn edge). The chip carries the same
+  // opaque styling as "refine" / "release"; the user double-clicks to
+  // rename, matching the canvas-side editability of named edges.
+  // Read-only mode collapses to the 0.2.0 behavior — only non-empty
+  // labels render.
   const shouldRenderLabel =
     labelText !== undefined && (editing !== null ? true : labelText.length > 0)
 

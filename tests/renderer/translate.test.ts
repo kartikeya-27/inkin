@@ -124,7 +124,15 @@ describe('translate() — basic shape', () => {
 })
 
 describe('translate() — node edit-flag policy', () => {
-  it('marks cluster nodes as non-selectable, non-draggable, non-connectable (always)', () => {
+  it('cluster nodes carry connectable:false + dragHandle, leave selectable/draggable for GraphRenderer to flip', () => {
+    // 0.4.0 (Phase 18): clusters are first-class — selectable + draggable
+    // in editable mode. GraphRenderer's top-level `nodesDraggable` /
+    // `elementsSelectable` flags (which derive from `editable`) govern,
+    // same as regular nodes, so translate() leaves both fields
+    // undefined on the cluster node. `connectable: false` stays because
+    // edge endpoints must reference a Node.id in the schema. `dragHandle`
+    // restricts drag-init to the cluster header strip — body stays
+    // click-through for child nodes that visually sit inside.
     const { nodes } = translate(
       parse({
         schemaVersion: 1,
@@ -137,9 +145,10 @@ describe('translate() — node edit-flag policy', () => {
       }),
     )
     const cluster = nodes.find((n) => n.id === 'g')
-    expect(cluster?.selectable).toBe(false)
-    expect(cluster?.draggable).toBe(false)
+    expect(cluster?.selectable).toBeUndefined()
+    expect(cluster?.draggable).toBeUndefined()
     expect(cluster?.connectable).toBe(false)
+    expect(cluster?.dragHandle).toBe('.inkin-cluster-drag-handle')
   })
 
   it('leaves regular nodes WITHOUT per-node flags so GraphRenderer can flip them on `editable`', () => {

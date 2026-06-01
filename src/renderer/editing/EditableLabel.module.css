@@ -21,12 +21,15 @@
   display: inline-block;
 }
 
-/* When the resting value is empty (e.g. a freshly-drawn edge with no
- * label yet), render the placeholder text at low opacity + italic so the
- * slot stays discoverable without competing visually with real labels. */
+/* Empty placeholder used to render at low opacity + italic to flag the
+ * slot as "a placeholder, not a real value". User feedback on the
+ * 0.4.0 edge chrome made it clear the visual divergence read as "this
+ * label isn't editable" — so empty placeholders now share styling with
+ * filled ones (same chip, same text weight). The text "label" inside
+ * the chip is the canvas-side cue; double-click to rename works
+ * identically to filled labels. */
 .staticLabelEmpty {
-  opacity: 0.5;
-  font-style: italic;
+  /* kept as a no-op class so the cn() call site doesn't need a branch */
 }
 
 .input {
