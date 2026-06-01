@@ -6,6 +6,7 @@ import {
   type Node,
   type OnConnect,
   type OnEdgesChange,
+  type OnNodeDrag,
   type OnNodesChange,
   ReactFlow,
 } from '@xyflow/react'
@@ -65,6 +66,14 @@ export interface GraphRendererProps {
   readonly onNodesDelete?: (deleted: Node[]) => void
   /** From `useFlowSync` — forwarded to `<ReactFlow onEdgesDelete>`. */
   readonly onEdgesDelete?: (deleted: Edge[]) => void
+  /**
+   * From `useFlowSync` — forwarded to `<ReactFlow onNodeDragStop>`. Powers
+   * the 0.4.0 cross-cluster drag-and-drop reassignment: the sync hook
+   * compares the dropped node's intersection set against its current
+   * schema cluster and dispatches a `SetField{node-cluster}` patch when
+   * they differ.
+   */
+  readonly onNodeDragStop?: OnNodeDrag<Node>
 }
 
 export function GraphRenderer({
@@ -78,6 +87,7 @@ export function GraphRenderer({
   onConnect,
   onNodesDelete,
   onEdgesDelete,
+  onNodeDragStop,
 }: GraphRendererProps) {
   // xyflow's prop types reject `undefined` under exactOptionalPropertyTypes,
   // so the optional handler props are passed via conditional spread — only
@@ -93,6 +103,7 @@ export function GraphRenderer({
       {...(onConnect !== undefined && { onConnect })}
       {...(onNodesDelete !== undefined && { onNodesDelete })}
       {...(onEdgesDelete !== undefined && { onEdgesDelete })}
+      {...(onNodeDragStop !== undefined && { onNodeDragStop })}
       nodesDraggable={editable}
       nodesConnectable={editable}
       elementsSelectable={editable}

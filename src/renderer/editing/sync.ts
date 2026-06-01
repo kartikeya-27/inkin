@@ -7,9 +7,11 @@ import {
   type NodeChange,
   type OnConnect,
   type OnEdgesChange,
+  type OnNodeDrag,
   type OnNodesChange,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { dagreLayout } from '../../schema/layout'
@@ -18,6 +20,7 @@ import { type InkinValidationError, safeParse } from '../../schema/validate'
 import { useEditorStoreApi } from '../store'
 import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
+import { pickClusterReassignment } from './cross-cluster'
 import type { AddClusterPatch, AddNodePatch, Patch, SetFieldTarget } from './patches'
 
 /**
@@ -153,6 +156,21 @@ export interface UseFlowSyncResult {
    * recognizes as "strip the field".
    */
   readonly dispatchAssignCluster: (nodeId: string, clusterId: string | undefined) => void
+  /**
+   * Pass to `<ReactFlow onNodeDragStop>`. Compares the dropped node's
+   * post-drag intersection set (via xyflow's `getIntersectingNodes`)
+   * against its current `cluster` field in the schema, and dispatches
+   * `SetField{node-cluster}` only when they differ. The dispatch
+   * micro-batches with the `MoveNode` already queued by
+   * `onNodesChange`, so the net effect on the consumer is one
+   * `onChange` carrying both the new position AND the new cluster
+   * assignment.
+   *
+   * Pick policy when the dropped node intersects multiple clusters:
+   * smallest-area wins (the most specific containment). Defensive
+   * fallback if measurements are missing: first match.
+   */
+  readonly onNodeDragStop: OnNodeDrag<Node>
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -185,6 +203,10 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
   const { value, layout = 'auto', onChange } = options
   const isEditable = onChange !== undefined
   const storeApi = useEditorStoreApi()
+  // xyflow's spatial index for cross-cluster drag detection (Phase 9).
+  // Requires ReactFlowProvider in the ancestry — DiagramStudio mounts it
+  // wrapping DiagramStudioInner, which is where useFlowSync runs.
+  const reactFlow = useReactFlow()
 
   // --- Read path: parse + translate, seed xyflow's local state ------------
 
@@ -489,6 +511,39 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [dispatchPatch],
   )
 
+  // --- Cross-cluster drag detection (Phase 9) -----------------------------
+
+  /**
+   * On drag-end: compute the intersection set against the dropped node,
+   * delegate the cluster-pick decision to {@link pickClusterReassignment}
+   * (pure helper, unit-tested independently), and dispatch
+   * `SetField{node-cluster}` only when the decision actually changes the
+   * assignment. The dispatcher's microtask batches this with the
+   * `MoveNode` already queued by `onNodesChange`, so the consumer sees
+   * one `onChange` carrying both the new position and the new cluster.
+   *
+   * Read-only / no-onChange guard: dispatchers no-op when `!isEditable`,
+   * but bailing here also saves the spatial query.
+   */
+  const onNodeDragStop = useCallback<OnNodeDrag<Node>>(
+    (_event, droppedNode) => {
+      if (!isEditable) return
+      const parsed = parsedRef.current
+      if (parsed === null) return
+
+      const intersecting = reactFlow.getIntersectingNodes(droppedNode)
+      const decision = pickClusterReassignment(droppedNode.id, intersecting, parsed)
+      if (decision === null) return
+
+      dispatchPatch({
+        kind: 'SetField',
+        target: { kind: 'node-cluster', id: droppedNode.id },
+        value: decision.newCluster,
+      })
+    },
+    [isEditable, reactFlow, dispatchPatch],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -511,6 +566,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     dispatchAddNode,
     dispatchAddCluster,
     dispatchAssignCluster,
+    onNodeDragStop,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

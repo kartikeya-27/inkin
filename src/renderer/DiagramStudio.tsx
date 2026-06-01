@@ -210,6 +210,7 @@ function DiagramStudioInner({
         onConnect={sync.onConnect}
         onNodesDelete={sync.onNodesDelete}
         onEdgesDelete={sync.onEdgesDelete}
+        onNodeDragStop={sync.onNodeDragStop}
       />
     </>
   )
