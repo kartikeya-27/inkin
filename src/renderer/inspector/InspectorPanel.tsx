@@ -51,9 +51,26 @@ export interface InspectorPanelProps {
   readonly position?: InspectorPosition
   /** Additional CSS class for the panel wrapper. */
   readonly className?: string | undefined
+  /**
+   * 0.4.0 Phase 28 — invoked when the user clicks the "x" on a chip in
+   * the multi-select rail. DiagramStudioInner wires this to
+   * `sync.onNodesChange([{ type: 'select', id, selected: false }])`
+   * so the deselect propagates to both xyflow's internal state (the
+   * canvas selection ring disappears) and our SelectionSlice mirror
+   * (the chip rail re-renders). Optional — when omitted the rail
+   * still renders but the chip remove button no-ops, which is the
+   * safe fallback for read-only embeds that mount InspectorPanel
+   * directly.
+   */
+  readonly onDeselectNode?: (nodeId: string) => void
 }
 
-export function InspectorPanel({ diagram, position = 'right', className }: InspectorPanelProps) {
+export function InspectorPanel({
+  diagram,
+  position = 'right',
+  className,
+  onDeselectNode,
+}: InspectorPanelProps) {
   const actions = useEditorActions()
   const storeApi = useEditorStoreApi()
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds)
@@ -74,6 +91,7 @@ export function InspectorPanel({ diagram, position = 'right', className }: Inspe
     selectedNodes,
     selectedEdges,
     selectedClusters,
+    ...(onDeselectNode !== undefined && { onRemoveFromSelection: onDeselectNode }),
   })
 
   // Phase 20 clarity: visible clear-selection button next to the title
@@ -125,19 +143,26 @@ function routeContent({
   selectedNodes,
   selectedEdges,
   selectedClusters,
+  onRemoveFromSelection,
 }: {
   readonly diagram: Diagram
   readonly actions: import('../editing/EditorActionsContext').EditorActions
   readonly selectedNodes: ReturnType<typeof Array.prototype.filter>
   readonly selectedEdges: ReturnType<typeof Array.prototype.filter>
   readonly selectedClusters: ReturnType<typeof Array.prototype.filter>
+  readonly onRemoveFromSelection?: (nodeId: string) => void
 }): RouteResult {
   if (selectedNodes.length > 0) {
     return {
       kind: 'node',
       count: selectedNodes.length,
       content: (
-        <NodeFields nodes={selectedNodes} clusters={diagram.clusters ?? []} actions={actions} />
+        <NodeFields
+          nodes={selectedNodes}
+          clusters={diagram.clusters ?? []}
+          actions={actions}
+          {...(onRemoveFromSelection !== undefined && { onRemoveFromSelection })}
+        />
       ),
     }
   }

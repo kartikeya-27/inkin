@@ -229,11 +229,23 @@ function DiagramStudioInner({
     <div className={styles.contentRow}>
       {showPalette && palette === 'left' && <Palette position={palette} />}
       {showInspector && inspector === 'left' && sync.parsedDiagram !== null && (
-        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
+        <InspectorPanel
+          diagram={sync.parsedDiagram}
+          position={inspector}
+          onDeselectNode={(nodeId) =>
+            sync.onNodesChange([{ type: 'select', id: nodeId, selected: false }])
+          }
+        />
       )}
       {canvas}
       {showInspector && inspector === 'right' && sync.parsedDiagram !== null && (
-        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
+        <InspectorPanel
+          diagram={sync.parsedDiagram}
+          position={inspector}
+          onDeselectNode={(nodeId) =>
+            sync.onNodesChange([{ type: 'select', id: nodeId, selected: false }])
+          }
+        />
       )}
     </div>
   )

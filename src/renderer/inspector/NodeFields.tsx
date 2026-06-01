@@ -31,6 +31,14 @@ export interface NodeFieldsProps {
   /** Every cluster in the diagram — used to populate the cluster dropdown. */
   readonly clusters: readonly Cluster[]
   readonly actions: EditorActions
+  /**
+   * 0.4.0 Phase 28 — invoked when the user clicks the "x" on a chip in
+   * the multi-select rail to remove that one node from the selection.
+   * InspectorPanel wires this to a `setSelection` that drops the id
+   * from `selectedNodeIds` while leaving the others in place.
+   * Single-select: rail isn't rendered, so this prop never fires.
+   */
+  readonly onRemoveFromSelection?: (nodeId: string) => void
 }
 
 const SHAPE_OPTIONS: readonly SelectOption[] = [
@@ -41,7 +49,7 @@ const SHAPE_OPTIONS: readonly SelectOption[] = [
 const UNASSIGN_OPTION: SelectOption = { value: '', label: '— none —' }
 const MIXED_PLACEHOLDER = 'multiple values'
 
-export function NodeFields({ nodes, clusters, actions }: NodeFieldsProps) {
+export function NodeFields({ nodes, clusters, actions, onRemoveFromSelection }: NodeFieldsProps) {
   const labelId = useId()
   const sublabelId = useId()
   const shapeId = useId()
@@ -103,6 +111,28 @@ export function NodeFields({ nodes, clusters, actions }: NodeFieldsProps) {
         <div className={styles.bulkBanner} role="status" data-testid="inkin-inspector-bulk-banner">
           Applies to all {nodes.length} selected nodes
         </div>
+      )}
+      {nodes.length > 1 && onRemoveFromSelection !== undefined && (
+        <ul
+          className={styles.selectionRail}
+          aria-label="Selected nodes"
+          data-testid="inkin-inspector-selection-rail"
+        >
+          {nodes.map((node) => (
+            <li key={node.id} className={styles.selectionChip}>
+              <span className={styles.selectionChipLabel}>{node.label || node.id}</span>
+              <button
+                type="button"
+                className={styles.selectionChipRemove}
+                onClick={() => onRemoveFromSelection(node.id)}
+                aria-label={`Remove ${node.label || node.id} from selection`}
+                title="Remove from selection"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       <Field label={nodes.length > 1 ? 'Labels' : 'Label'} htmlFor={labelId}>
         <TextInput

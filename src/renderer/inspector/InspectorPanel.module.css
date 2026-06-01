@@ -121,6 +121,67 @@
   line-height: 1.4;
 }
 
+/* Phase 28 — selection rail of chips below the bulk banner; one chip per
+ * selected node, with an "x" to deselect that specific node without
+ * losing the rest of the multi-select. */
+.selectionRail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.selectionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 2px 2px 8px;
+  background: var(--inkin-bg-node);
+  border: 1px solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--inkin-text-primary);
+}
+
+.selectionChipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.selectionChipRemove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--inkin-text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.selectionChipRemove:hover {
+  background: var(--inkin-accent-primary-soft);
+  color: var(--inkin-text-primary);
+}
+
+.selectionChipRemove:focus-visible {
+  outline: 2px solid var(--inkin-accent-primary);
+  outline-offset: 1px;
+}
+
 .body {
   flex: 1;
   min-height: 0;
