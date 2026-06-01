@@ -1,0 +1,55 @@
+/*
+ * Palette toolbar. Same overlay chrome aesthetic as InspectorPanel but
+ * narrower (just two tool buttons) and dockable left (vertical column)
+ * or top (horizontal row).
+ *
+ * Phase 10 finalizes responsive behavior; this commit ships the resting
+ * dock + button stacking, which is enough for Phase 8's wiring.
+ */
+
+.root {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--inkin-bg-node);
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  box-shadow: var(--inkin-shadow-node);
+  z-index: 10;
+}
+
+.positionLeft {
+  top: 12px;
+  left: 12px;
+  flex-direction: column;
+}
+
+.positionTop {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: row;
+}
+
+.tool {
+  /* Force consistent button widths so the toolbar reads as a tidy stack. */
+  min-width: 88px;
+  justify-content: flex-start;
+}
+
+/* Sub-480px viewports: dock to the top edge as a tight row so a vertical
+ * column on a narrow screen doesn't push the canvas too far down. */
+@media (max-width: 480px) {
+  .positionLeft {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  .tool {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+}
