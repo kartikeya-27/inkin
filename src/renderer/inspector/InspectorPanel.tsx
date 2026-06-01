@@ -2,7 +2,7 @@ import type { Diagram } from '../../schema/types'
 import { effectiveEdgeId } from '../editing/apply-patch'
 import { useEditorActions } from '../editing/EditorActionsContext'
 import { cn } from '../lib/cn'
-import { useEditorStore } from '../store'
+import { useEditorStore, useEditorStoreApi } from '../store'
 import { ClusterFields } from './ClusterFields'
 import { EdgeFields } from './EdgeFields'
 import { EmptyState } from './EmptyState'
@@ -55,6 +55,7 @@ export interface InspectorPanelProps {
 
 export function InspectorPanel({ diagram, position = 'right', className }: InspectorPanelProps) {
   const actions = useEditorActions()
+  const storeApi = useEditorStoreApi()
   const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds)
   const selectedEdgeIds = useEditorStore((s) => s.selectedEdgeIds)
   const selectedClusterIds = useEditorStore((s) => s.selectedClusterIds)
@@ -75,6 +76,12 @@ export function InspectorPanel({ diagram, position = 'right', className }: Inspe
     selectedClusters,
   })
 
+  // Phase 20 clarity: visible clear-selection button next to the title
+  // whenever anything is selected. Lets the user back out of a multi-
+  // select state explicitly rather than clicking on a random pane spot
+  // hoping to deselect.
+  const hasSelection = kind !== 'empty'
+
   return (
     <aside
       className={cn(
@@ -87,6 +94,17 @@ export function InspectorPanel({ diagram, position = 'right', className }: Inspe
     >
       <header className={styles.header}>
         <div className={styles.title}>{titleFor(kind, count)}</div>
+        {hasSelection && (
+          <button
+            type="button"
+            className={styles.clearButton}
+            onClick={() => storeApi.getState().clearSelection()}
+            aria-label="Clear selection"
+            data-testid="inkin-inspector-clear"
+          >
+            Clear
+          </button>
+        )}
       </header>
       <div className={styles.body}>{content}</div>
     </aside>

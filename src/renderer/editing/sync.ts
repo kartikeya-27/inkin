@@ -546,20 +546,39 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
    * id and supplies any optional fields the click context resolved
    * (e.g. `position` from the canvas click coordinates, `cluster` if
    * the click landed inside a cluster's bounds).
+   *
+   * Phase 20: the new node becomes the only selected entity so the
+   * Inspector opens with its fields populated — "I just added a node,
+   * now I want to rename it" lands without the user having to find
+   * the new node on the canvas first.
    */
   const dispatchAddNode = useCallback(
     (args: DispatchAddNodeArgs) => {
       dispatchPatch({ kind: 'AddNode', ...args })
+      storeApi.getState().setSelection({
+        nodes: new Set([args.id]),
+        edges: new Set<string>(),
+        clusters: new Set<string>(),
+      })
     },
-    [dispatchPatch],
+    [dispatchPatch, storeApi],
   )
 
-  /** AddCluster verb — palette-driven cluster creation. Empty by design. */
+  /**
+   * AddCluster verb — palette-driven cluster creation. Empty by design.
+   * Phase 20: the new cluster is selected so the Inspector routes to
+   * ClusterFields immediately for the inevitable rename.
+   */
   const dispatchAddCluster = useCallback(
     (args: DispatchAddClusterArgs) => {
       dispatchPatch({ kind: 'AddCluster', ...args })
+      storeApi.getState().setSelection({
+        nodes: new Set<string>(),
+        edges: new Set<string>(),
+        clusters: new Set([args.id]),
+      })
     },
-    [dispatchPatch],
+    [dispatchPatch, storeApi],
   )
 
   /**

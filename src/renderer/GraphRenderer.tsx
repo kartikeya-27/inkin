@@ -30,20 +30,39 @@ import { nodeTypes as rendererNodeTypes } from './nodes'
  * inline-edit dispatch.
  *
  * Per-node policy still wins over the top-level flag — cluster nodes carry
- * `selectable: false, draggable: false, connectable: false` in `translate.ts`
- * regardless of `editable`, so cluster manipulation never enters scope here
- * (cross-cluster drag + rename land in 0.4.0 alongside the Inspector chrome).
+ * `connectable: false` in `translate.ts` always (the schema doesn't allow
+ * edges to reference clusters). 0.4.0 / Phase 18 lifted clusters' previous
+ * `selectable: false, draggable: false` overrides so they inherit `editable`
+ * the same way regular nodes do.
  *
  * `deleteKeyCode={['Backspace', 'Delete']}` is the documented xyflow knob for
  * keyboard-driven node and edge deletion. xyflow fires a `remove` change
  * through `onNodesChange` / `onEdgesChange`, which the sync hook dispatches
- * as `DeleteNode` / `DeleteEdge` patches (cascade is the reducer's job).
+ * as `DeleteNode` / `DeleteEdge` / `DeleteCluster` patches (cascade is the
+ * reducer's job).
+ *
+ * `multiSelectionKeyCode={'Shift'}` (Phase 20): xyflow's default is `Control`
+ * on Windows/Linux and `Meta` on Mac — Shift+click does NOT extend selection
+ * without this override. The user's smoke caught a Windows user reaching for
+ * Shift first (the universal design-tool convention) and getting silent
+ * single-selection. We override to `'Shift'` because xyflow v12's KeyCode
+ * type doesn't accept OR-combinations of modifiers (`string[]` is AND, not
+ * OR). 'Shift' is the right single choice — Figma, Sketch, tldraw, and
+ * Excalidraw all multi-select on Shift+click.
  */
 
 // Composed once at module scope; the maps never change.
 const nodeTypes = { ...rendererNodeTypes, ...clusterNodeTypes }
 
 const DELETE_KEYS = ['Backspace', 'Delete']
+// xyflow's KeyCode type (string | string[]) treats arrays as AND-combinations
+// and offers no OR-combination escape hatch in v12. xyflow's own default
+// (Meta on Mac, Control on Win/Linux) was the cross-OS approach but
+// invisible to Shift-first users — the user's smoke confirmed Shift+click
+// silently replaced selection. Picking a single, universally available
+// modifier solves the discoverability gap; 'Shift' is what every design
+// tool (Figma, Sketch, tldraw, Excalidraw) uses for multi-select.
+const MULTI_SELECT_KEY = 'Shift'
 
 export interface GraphRendererProps {
   readonly nodes: Node[]
@@ -119,6 +138,7 @@ export function GraphRenderer({
       elementsSelectable={editable}
       nodesFocusable={editable}
       deleteKeyCode={editable ? DELETE_KEYS : null}
+      multiSelectionKeyCode={editable ? MULTI_SELECT_KEY : null}
       // Auto-fit the viewport to show all nodes on initial mount; without this,
       // diagrams larger than the container's initial viewport render off-screen.
       fitView
