@@ -1,0 +1,74 @@
+/*
+ * InspectorPanel chrome. Absolutely positioned overlay inside the
+ * DiagramStudio wrapper (Decision #6) so consumers' outer layout doesn't
+ * need to allocate space. Fixed width with min/max guards; below the
+ * responsive breakpoint (Phase 10 finalizes), the panel transitions to a
+ * bottom-sheet via media query.
+ */
+
+.root {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 280px;
+  min-width: 240px;
+  max-width: 35%;
+  display: flex;
+  flex-direction: column;
+  background: var(--inkin-bg-node);
+  border: var(--inkin-border-width) solid var(--inkin-border-node);
+  border-radius: var(--inkin-node-radius);
+  box-shadow: var(--inkin-shadow-node);
+  font-family: var(--inkin-font-sans);
+  color: var(--inkin-text-primary);
+  z-index: 10;
+  overflow: hidden;
+}
+
+.positionRight {
+  right: 12px;
+}
+
+.positionLeft {
+  left: 12px;
+}
+
+.header {
+  padding: 10px 12px;
+  border-bottom: var(--inkin-border-width) solid var(--inkin-border-node);
+  user-select: none;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--inkin-text-secondary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+/* Sub-480px viewports: dock the panel to the bottom as a sheet rather
+ * than eat 280 px of canvas width. Phase 10 will polish heights and
+ * scroll behavior; this is the minimum for the Phase 6 commit. */
+@media (max-width: 480px) {
+  .root {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: 50vh;
+    border-radius: var(--inkin-node-radius) var(--inkin-node-radius) 0 0;
+  }
+}
