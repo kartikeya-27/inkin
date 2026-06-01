@@ -147,10 +147,17 @@ export function translate(diagram: Diagram): TranslatedDiagram {
       position: { x: bounds.x, y: bounds.y },
       data: { label: cluster.label },
       style: { width: bounds.width, height: bounds.height },
-      // Read-only renderer (0.2.0): no selection, drag, or new connections.
-      selectable: false,
-      draggable: false,
+      // 0.4.0 (Phase 18): clusters are first-class — selectable + draggable
+      // when editing is on. We let GraphRenderer's top-level `nodesDraggable`
+      // / `elementsSelectable` flags govern (set from `editable`), same as
+      // regular nodes. `connectable: false` stays because edge endpoints
+      // must reference a Node.id in the schema; allowing connections to a
+      // cluster would always fail safeParse.
+      // `dragHandle` restricts drag-init to the header strip so the cluster
+      // body stays click-through for the child nodes that visually sit
+      // inside it.
       connectable: false,
+      dragHandle: '.inkin-cluster-drag-handle',
     }
   })
 

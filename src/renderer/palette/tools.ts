@@ -28,6 +28,17 @@ export interface HandlePlacementClickOptions {
   readonly dispatchAddCluster: (args: DispatchAddClusterArgs) => void
   /** From the InteractionSlice — resets `mode` to `'idle'`. */
   readonly exitPlacementMode: () => void
+  /**
+   * 0.4.0 (Phase 18) — if the placement click landed inside an existing
+   * cluster's bounds, the caller passes that cluster's id here and a
+   * `placing-node` dispatch parents the new node into it. The Inspector's
+   * Cluster dropdown is the equivalent path for already-placed nodes.
+   *
+   * Caller (`sync.onPaneClick`) is responsible for the bounds lookup via
+   * xyflow's spatial index — keeping this arg as a plain id keeps
+   * tools.ts pure (no xyflow import).
+   */
+  readonly parentClusterId?: string
 }
 
 /**
@@ -46,12 +57,28 @@ export interface HandlePlacementClickOptions {
  * to default before the new entity has rendered.
  */
 export function handlePlacementClick(options: HandlePlacementClickOptions): void {
-  const { mode, point, diagram, dispatchAddNode, dispatchAddCluster, exitPlacementMode } = options
+  const {
+    mode,
+    point,
+    diagram,
+    dispatchAddNode,
+    dispatchAddCluster,
+    exitPlacementMode,
+    parentClusterId,
+  } = options
 
   if (mode === 'placing-node') {
     const existing = new Set(diagram.nodes.map((node) => node.id))
     const id = mintUniqueId(existing)
-    dispatchAddNode({ id, label: DEFAULT_NODE_LABEL, position: point })
+    dispatchAddNode({
+      id,
+      label: DEFAULT_NODE_LABEL,
+      position: point,
+      // Phase 18 — auto-parent into the cluster under the click point so
+      // "Add Node inside a cluster's bounds" matches what the user sees
+      // happen visually.
+      ...(parentClusterId !== undefined && { cluster: parentClusterId }),
+    })
     exitPlacementMode()
     return
   }

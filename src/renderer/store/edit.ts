@@ -31,13 +31,15 @@ import type { EditorStore } from './index'
  *   - `node-label`    → `Node.label`
  *   - `node-sublabel` → `Node.sublabel`
  *   - `edge-label`    → `Edge.label`
+ *   - `cluster-label` → `Cluster.label` (new in 0.4.0 / Phase 18 — Cluster
+ *                       gets an inline-rename affordance via its header)
  *
  * For edges, `id` is the effective edge id (explicit `Edge.id` or the
  * auto-derived `${from}->${to}` form — same convention the reducer's
  * `SetField` arm uses).
  */
 export interface EditTarget {
-  readonly kind: 'node-label' | 'node-sublabel' | 'edge-label'
+  readonly kind: 'node-label' | 'node-sublabel' | 'edge-label' | 'cluster-label'
   readonly id: string
 }
 

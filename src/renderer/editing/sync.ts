@@ -368,22 +368,53 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
       _setNodes((current) => applyNodeChanges(changes, current))
 
       // Mirror xyflow's selection into our SelectionSlice so the keymap +
-      // EditableLabel + future Inspector can read selection via Zustand
-      // selectors without subscribing to xyflow's internal store. We
-      // batch the selection change events in this tick into a single
-      // setSelection call (avoids N store writes for a marquee-select).
-      let nextSelection: Set<string> | null = null
+      // EditableLabel + Inspector can read selection via Zustand selectors
+      // without subscribing to xyflow's internal store.
+      //
+      // 0.4.0 (Phase 18): route by xyflow node type — cluster ids land in
+      // `selectedClusterIds`, everything else in `selectedNodeIds`. The
+      // InspectorPanel routes to ClusterFields vs NodeFields based on
+      // which Set the id is in, so a wrong-bucket mirror breaks the
+      // cluster Inspector path.
+      let nodesDelta: Map<string, boolean> | null = null
+      let clustersDelta: Map<string, boolean> | null = null
+      const xyNodesForSelection = nodesRef.current
       for (const change of changes) {
         if (change.type === 'select') {
-          if (nextSelection === null) {
-            nextSelection = new Set(storeApi.getState().selectedNodeIds)
+          const node = xyNodesForSelection.find((n) => n.id === change.id)
+          const isCluster = node?.type === 'cluster'
+          if (isCluster) {
+            clustersDelta ??= new Map()
+            clustersDelta.set(change.id, change.selected)
+          } else {
+            nodesDelta ??= new Map()
+            nodesDelta.set(change.id, change.selected)
           }
-          if (change.selected) nextSelection.add(change.id)
-          else nextSelection.delete(change.id)
         }
       }
-      if (nextSelection !== null) {
-        storeApi.getState().setSelection({ nodes: nextSelection })
+      if (nodesDelta !== null || clustersDelta !== null) {
+        const state = storeApi.getState()
+        const update: {
+          nodes?: ReadonlySet<string>
+          clusters?: ReadonlySet<string>
+        } = {}
+        if (nodesDelta !== null) {
+          const next = new Set(state.selectedNodeIds)
+          for (const [id, selected] of nodesDelta) {
+            if (selected) next.add(id)
+            else next.delete(id)
+          }
+          update.nodes = next
+        }
+        if (clustersDelta !== null) {
+          const next = new Set(state.selectedClusterIds)
+          for (const [id, selected] of clustersDelta) {
+            if (selected) next.add(id)
+            else next.delete(id)
+          }
+          update.clusters = next
+        }
+        state.setSelection(update)
       }
 
       if (!isEditable) return
@@ -399,7 +430,18 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
           const absolute = xyflowPositionToAbsolute(change.position, parent?.position)
           dispatchPatch({ kind: 'MoveNode', nodeId: change.id, position: absolute })
         } else if (change.type === 'remove') {
-          dispatchPatch({ kind: 'DeleteNode', nodeId: change.id })
+          // 0.4.0 (Phase 18): dispatch DeleteCluster vs DeleteNode by type.
+          // The schema's `DeleteCluster` reducer arm strips the `cluster`
+          // field from child nodes (cascade), so children stay in the
+          // diagram as top-level nodes — same contract Excalidraw uses
+          // for frame deletion.
+          const xyNodes = nodesRef.current
+          const node = xyNodes.find((n) => n.id === change.id)
+          if (node?.type === 'cluster') {
+            dispatchPatch({ kind: 'DeleteCluster', clusterId: change.id })
+          } else {
+            dispatchPatch({ kind: 'DeleteNode', nodeId: change.id })
+          }
         }
         // Other change types (`select`, `dimensions`, `position` with
         // `dragging: true`, `add`, `replace`) stay local — no patch.
@@ -581,6 +623,33 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
         y: event.clientY,
       })
 
+      // 0.4.0 (Phase 18): if the click landed inside an existing cluster's
+      // bounds, the new node should be parented into it so the Palette
+      // behaves the same as Inspector's "Cluster" dropdown. Query xyflow's
+      // spatial index with a 1×1 rect at the click — anything we get back
+      // overlaps the click point. Pick the smallest-area intersecting
+      // cluster (most specific containment) per the Phase 9 policy.
+      let parentClusterId: string | undefined
+      if (state.mode === 'placing-node') {
+        const intersecting = reactFlow.getIntersectingNodes({
+          x: point.x,
+          y: point.y,
+          width: 1,
+          height: 1,
+        })
+        let smallestArea = Number.POSITIVE_INFINITY
+        for (const candidate of intersecting) {
+          if (candidate.type !== 'cluster') continue
+          const w = candidate.measured?.width ?? candidate.width ?? Number.POSITIVE_INFINITY
+          const h = candidate.measured?.height ?? candidate.height ?? Number.POSITIVE_INFINITY
+          const area = w * h
+          if (area < smallestArea) {
+            smallestArea = area
+            parentClusterId = candidate.id
+          }
+        }
+      }
+
       handlePlacementClick({
         mode: state.mode,
         point,
@@ -588,6 +657,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
         dispatchAddNode,
         dispatchAddCluster,
         exitPlacementMode: state.exitPlacementMode,
+        ...(parentClusterId !== undefined && { parentClusterId }),
       })
     },
     [isEditable, reactFlow, storeApi, dispatchAddNode, dispatchAddCluster],

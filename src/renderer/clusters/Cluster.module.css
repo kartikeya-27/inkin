@@ -1,11 +1,19 @@
 /*
- * Cluster — dashed-border container with top-left monospace label.
+ * Cluster — dashed-border container with a header strip carrying the label.
  *
  * The wrapper fills 100% of its xyflow-assigned width/height (which translate.ts
  * computed from the bounding box of children + padding + label area).
  *
- * The label is positioned absolutely so it doesn't push child layout; the
- * `padding-top` reservation lives in translate.ts (CLUSTER_LABEL_HEIGHT = 28px).
+ * 0.4.0 (Phase 18): cluster is first-class. The header strip sits at the top
+ * (28 px, matching translate.ts's CLUSTER_LABEL_HEIGHT reservation) and is
+ * the only part that initiates a cluster drag — xyflow's `dragHandle` prop
+ * on the cluster node points at `.inkin-cluster-drag-handle` (a global
+ * className set on the header by Cluster.tsx).
+ *
+ * Body has `pointer-events: none` so child nodes (which xyflow renders
+ * *above* the cluster in the DOM but visually inside its bounds) keep
+ * their own click targets. Without this, clicking a child node would
+ * sometimes hit the cluster's empty body instead.
  */
 
 .root {
@@ -16,17 +24,39 @@
   border: var(--inkin-border-width) dashed var(--inkin-border-cluster);
   border-radius: var(--inkin-cluster-radius);
   position: relative;
+  /* Body click-through so child nodes inside the cluster keep their
+   * own click targets. The header inside overrides this for itself. */
+  pointer-events: none;
+}
+
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Match translate.ts's CLUSTER_LABEL_HEIGHT (28 px) so the children
+   * laid out below the header don't overlap. */
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  /* The header is the cluster's drag-handle + click target. */
+  pointer-events: all;
+  cursor: grab;
+  user-select: none;
+  /* Slight tint so the strip reads as a distinct band. Uses the cluster
+   * border token to stay theme-consistent without introducing a new var. */
+  border-bottom: 1px dashed var(--inkin-border-cluster);
+}
+
+.header:active {
+  cursor: grabbing;
 }
 
 .label {
-  position: absolute;
-  top: 8px;
-  left: 14px;
   font-family: var(--inkin-font-mono);
   font-size: 11px;
   line-height: 1;
   letter-spacing: 0.4px;
   color: var(--inkin-text-cluster-label);
-  pointer-events: none;
-  z-index: 1;
 }
