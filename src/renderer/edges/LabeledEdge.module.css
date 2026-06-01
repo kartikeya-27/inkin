@@ -51,6 +51,14 @@
    * EditableLabel inside stops propagation on its own dblclick so xyflow's
    * pane never sees the event either. */
   pointer-events: all;
+  /* Phase 26: labels always sit above every other edge in the canvas, not
+   * just their own edge's path. Without an explicit z-index a crossing
+   * edge's stroke can paint over the chip and intercept the dblclick,
+   * making the slot un-editable exactly where edges are densest. The
+   * EdgeLabelRenderer portal already lives above the SVG edges layer in
+   * xyflow's DOM, so a low integer is enough to win against any other
+   * label within the same portal. */
+  z-index: 10;
   white-space: nowrap;
   box-sizing: border-box;
 }
