@@ -26,6 +26,22 @@
     "limit": "200 kB"
   },
   {
+    "name": "@inkin/core (ESM, inkin-only code — excludes runtime deps; 0.4.0 ceiling)",
+    "path": "dist/index.js",
+    "import": "{ DiagramStudio, toSvg, parse }",
+    "ignore": [
+      "react",
+      "react-dom",
+      "@xyflow/react",
+      "@xyflow/system",
+      "zustand",
+      "@dagrejs/dagre",
+      "html-to-image",
+      "zod"
+    ],
+    "limit": "25 kB"
+  },
+  {
     "name": "@inkin/core/styles.css (consolidated stylesheet)",
     "path": "dist/styles.css",
     "limit": "30 kB"
