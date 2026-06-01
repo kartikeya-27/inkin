@@ -1,7 +1,9 @@
 /*
- * Palette toolbar. Same overlay chrome aesthetic as InspectorPanel but
- * narrower (two tool buttons) and dockable left (vertical column) or
- * top (horizontal row).
+ * Palette toolbar. 0.4.0 fix: now a flex sibling of the canvas, not an
+ * absolute overlay. Intrinsic size (auto) so the surrounding flex
+ * container hands it exactly the space it needs. The position prop
+ * picks the orientation (vertical column for 'left', horizontal row
+ * for 'top') and the entrance animation direction.
  *
  * Phase 10 polish: subtle slide-in entrance matching the dock edge,
  * `prefers-reduced-motion` opt-out, and a sub-480px responsive variant
@@ -9,7 +11,7 @@
  */
 
 .root {
-  position: absolute;
+  flex: 0 0 auto;
   display: flex;
   gap: 6px;
   padding: 6px;
@@ -17,22 +19,22 @@
   border: var(--inkin-border-width) solid var(--inkin-border-node);
   border-radius: var(--inkin-node-radius);
   box-shadow: var(--inkin-shadow-node);
-  z-index: 10;
   animation: inkinPaletteEnter 180ms ease-out;
 }
 
 .positionLeft {
-  top: 12px;
-  left: 12px;
   flex-direction: column;
+  /* Don't stretch to the canvas's full height — sit at the top of the
+   * column so the visual matches "a small toolbar in the corner". */
+  align-self: flex-start;
   animation-name: inkinPaletteEnterLeft;
 }
 
 .positionTop {
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   flex-direction: row;
+  /* Sit at the start of the horizontal axis so the toolbar reads as
+   * left-anchored rather than spanning the whole top edge. */
+  align-self: flex-start;
   animation-name: inkinPaletteEnterTop;
 }
 
@@ -59,11 +61,11 @@
 @keyframes inkinPaletteEnterTop {
   from {
     opacity: 0;
-    transform: translate(-50%, -8px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translateY(0);
   }
 }
 
@@ -79,31 +81,19 @@
   justify-content: flex-start;
 }
 
-/* Sub-480px viewports: swap to a top row so a vertical column on a narrow
- * screen doesn't push the canvas too far down. The entrance fades in
- * from the top to match the dock edge. */
+/* Sub-480px viewports: the wrapper flips to column layout, so a left-
+ * positioned palette becomes the top row of that column. Convert its
+ * internal axis to row so the two tools sit side-by-side rather than
+ * stacked. The wrapper's `align-items: stretch` (flex default) makes
+ * the palette full-width here, which is what we want for narrow screens. */
 @media (max-width: 480px) {
   .positionLeft {
-    top: 12px;
-    left: 12px;
-    right: 12px;
     flex-direction: row;
+    align-self: stretch;
     justify-content: flex-start;
-    animation-name: inkinPaletteEnterTopNarrow;
   }
   .tool {
     min-width: 0;
     flex: 0 0 auto;
-  }
-}
-
-@keyframes inkinPaletteEnterTopNarrow {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

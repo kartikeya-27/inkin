@@ -183,8 +183,8 @@ function DiagramStudioInner({
     )
   }
 
-  const renderer = (
-    <>
+  const canvas = (
+    <div className={styles.canvasArea}>
       {/*
         KeymapMount must be a child of EditingProvider so its
         `useEditingActions()` call sees the actions context (used by the
@@ -213,7 +213,39 @@ function DiagramStudioInner({
         onNodeDragStop={sync.onNodeDragStop}
         onPaneClick={sync.onPaneClick}
       />
-    </>
+    </div>
+  )
+
+  // Build the chrome+canvas tree as flex siblings so the panels reserve
+  // space instead of overlaying the canvas. The earlier overlay model
+  // (Decision #6 in the original plan) hid the right-most node and
+  // edge labels behind the panels in default state — flex reserves real
+  // space so every node + label stays visible.
+  const showPalette = sync.isEditable && palette !== 'off'
+  const showInspector =
+    sync.isEditable && inspector !== 'off' && sync.parsedDiagram !== null
+  const paletteOnTop = showPalette && palette === 'top'
+
+  const innerRow = (
+    <div className={styles.contentRow}>
+      {showPalette && palette === 'left' && <Palette position={palette} />}
+      {showInspector && inspector === 'left' && sync.parsedDiagram !== null && (
+        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
+      )}
+      {canvas}
+      {showInspector && inspector === 'right' && sync.parsedDiagram !== null && (
+        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
+      )}
+    </div>
+  )
+
+  const layoutContent = paletteOnTop ? (
+    <div className={styles.layoutColumn}>
+      <Palette position={palette} />
+      {innerRow}
+    </div>
+  ) : (
+    <div className={styles.layoutRow}>{innerRow}</div>
   )
 
   // EditingContext is mounted ONLY in editable mode — its presence is the
@@ -221,7 +253,7 @@ function DiagramStudioInner({
   // <EditableLabel> (editable) and a static <div> (read-only). The 0.4.0
   // Inspector + Palette mount inside the provider too so they can consume
   // EditorActionsContext (sibling to EditingContext).
-  if (!sync.isEditable) return renderer
+  if (!sync.isEditable) return layoutContent
   return (
     <EditingProvider
       dispatchSetField={sync.dispatchSetField}
@@ -229,11 +261,7 @@ function DiagramStudioInner({
       dispatchAddCluster={sync.dispatchAddCluster}
       dispatchAssignCluster={sync.dispatchAssignCluster}
     >
-      {renderer}
-      {palette !== 'off' && <Palette position={palette} />}
-      {inspector !== 'off' && sync.parsedDiagram !== null && (
-        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
-      )}
+      {layoutContent}
     </EditingProvider>
   )
 }
