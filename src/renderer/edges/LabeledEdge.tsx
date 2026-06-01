@@ -67,12 +67,13 @@ export function LabeledEdge({
 
   const isDashed = data?.style === 'dashed'
   const labelText = data?.label
-  // Render the label slot whenever a label exists (including the empty
-  // string case — that's how a consumer signals "I want an editable
-  // empty slot"). In read-only mode this collapses to the original 0.2.0
-  // behavior (label only shown when non-empty).
-  const shouldRenderLabel =
-    labelText !== undefined && (editing !== null ? true : labelText.length > 0)
+  // Only render the label chip for non-empty labels — same in both
+  // read-only and editable modes. The italic placeholder slot for empty
+  // labels was confusing in editable mode (read as a real label that
+  // happened to be styled differently from "refine" / "release"); the
+  // Inspector's EdgeFields covers the "I want to add a label to this
+  // edge" flow without needing a canvas-side discovery affordance.
+  const shouldRenderLabel = labelText !== undefined && labelText.length > 0
 
   return (
     <>

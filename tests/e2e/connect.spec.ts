@@ -55,29 +55,13 @@ test.describe('drag-to-connect', () => {
     await page.mouse.up()
 
     // New edge added; exactly one onChange fired (3 seed + 1 new = 4).
+    // 0.4.0: freshly-connected edges no longer render an italic
+    // placeholder chip on the canvas — empty edge labels render
+    // nothing. Adding a label after the fact is now an Inspector flow
+    // (EdgeFields), covered in inspector.spec.ts. inline-edit.spec.ts
+    // covers the canvas-side dblclick path for edges that already
+    // have a label.
     await expect(page.locator('.react-flow__edge')).toHaveCount(4)
     await expect(page.getByTestId('onchange-count')).toHaveText('1')
-
-    // The new edge gets an editable empty-label slot rendered as the
-    // italic "label" placeholder. Verify the slot exists (so the user
-    // can see/click it) and that dispatching a dblclick on it opens
-    // the input. We use dispatchEvent here because in this specific
-    // a → c geometry, xyflow places the edge midpoint over node b
-    // (Sketch), which would intercept a real pixel-level dblclick —
-    // a positioning artifact unrelated to the editability fix.
-    const placeholderLabel = page.locator('div[tabindex="-1"]').filter({ hasText: 'label' }).first()
-    await expect(placeholderLabel).toBeAttached()
-    await placeholderLabel.dispatchEvent('dblclick')
-
-    const input = page.getByLabel(/^label for edge /)
-    await expect(input).toBeVisible()
-    await input.fill('reconnected')
-    await input.press('Enter')
-
-    await expect(input).not.toBeVisible()
-    await expect(
-      page.locator('div[tabindex="-1"]').filter({ hasText: 'reconnected' }).first(),
-    ).toBeVisible()
-    await expect(page.getByTestId('onchange-count')).toHaveText('2')
   })
 })
