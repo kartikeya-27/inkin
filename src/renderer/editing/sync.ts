@@ -13,10 +13,12 @@ import {
   useNodesState,
   useReactFlow,
 } from '@xyflow/react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { dagreLayout } from '../../schema/layout'
 import type { Diagram, DiagramInput } from '../../schema/types'
 import { type InkinValidationError, safeParse } from '../../schema/validate'
+import { handlePlacementClick } from '../palette/tools'
 import { useEditorStoreApi } from '../store'
 import { translate, xyflowPositionToAbsolute } from '../translate'
 import { applyPatch } from './apply-patch'
@@ -171,6 +173,17 @@ export interface UseFlowSyncResult {
    * fallback if measurements are missing: first match.
    */
   readonly onNodeDragStop: OnNodeDrag<Node>
+  /**
+   * Pass to `<ReactFlow onPaneClick>`. When the InteractionSlice is in
+   * a `placing-*` mode (Palette tool armed), the click is translated
+   * from screen to flow coordinates via xyflow's `screenToFlowPosition`,
+   * a fresh id is minted, and the matching `AddNode` / `AddCluster`
+   * patch fires through the dispatcher. Mode resets to `idle` after a
+   * successful placement so the next click behaves normally. In
+   * `idle` mode the handler is a no-op — pane clicks fall through to
+   * xyflow's default selection-clear behavior.
+   */
+  readonly onPaneClick: (event: ReactMouseEvent) => void
   /** True when `onChange` was provided. GraphRenderer flips edit flags on this. */
   readonly isEditable: boolean
   /**
@@ -544,6 +557,42 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     [isEditable, reactFlow, dispatchPatch],
   )
 
+  // --- Palette placement click handler (Phase 7/8 completion) -------------
+
+  /**
+   * Canvas pane click handler. When the InteractionSlice is in a
+   * `placing-*` mode, projects the click coordinates from screen space
+   * into flow space (xyflow's `screenToFlowPosition`) and delegates to
+   * the pure `handlePlacementClick` helper which mints an id, dispatches
+   * the matching Add patch, and exits placement mode. In `idle` mode,
+   * no-op so xyflow's default pane-click behavior (clear selection) stays
+   * intact.
+   */
+  const onPaneClick = useCallback(
+    (event: ReactMouseEvent) => {
+      if (!isEditable) return
+      const parsed = parsedRef.current
+      if (parsed === null) return
+      const state = storeApi.getState()
+      if (state.mode === 'idle') return
+
+      const point = reactFlow.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+
+      handlePlacementClick({
+        mode: state.mode,
+        point,
+        diagram: parsed,
+        dispatchAddNode,
+        dispatchAddCluster,
+        exitPlacementMode: state.exitPlacementMode,
+      })
+    },
+    [isEditable, reactFlow, storeApi, dispatchAddNode, dispatchAddCluster],
+  )
+
   // `onNodesDelete` / `onEdgesDelete` are not the source of truth for
   // deletion — xyflow also fires a `remove` change through
   // `onNodesChange` / `onEdgesChange`, which is where the dispatch lives.
@@ -567,6 +616,7 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
     dispatchAddCluster,
     dispatchAssignCluster,
     onNodeDragStop,
+    onPaneClick,
     isEditable,
     parsedDiagram: parsedRef.current,
     parseError: parseErrorRef.current,

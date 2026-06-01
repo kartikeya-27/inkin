@@ -211,6 +211,7 @@ function DiagramStudioInner({
         onNodesDelete={sync.onNodesDelete}
         onEdgesDelete={sync.onEdgesDelete}
         onNodeDragStop={sync.onNodeDragStop}
+        onPaneClick={sync.onPaneClick}
       />
     </>
   )

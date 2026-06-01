@@ -74,6 +74,14 @@ export interface GraphRendererProps {
    * they differ.
    */
   readonly onNodeDragStop?: OnNodeDrag<Node>
+  /**
+   * From `useFlowSync` — forwarded to `<ReactFlow onPaneClick>`. When a
+   * Palette tool is armed (`InteractionSlice.mode !== 'idle'`), the
+   * click coordinates are projected to flow space and an `AddNode` /
+   * `AddCluster` patch fires. In `'idle'` mode it's a no-op so xyflow's
+   * default clear-selection behavior stays intact.
+   */
+  readonly onPaneClick?: (event: React.MouseEvent) => void
 }
 
 export function GraphRenderer({
@@ -88,6 +96,7 @@ export function GraphRenderer({
   onNodesDelete,
   onEdgesDelete,
   onNodeDragStop,
+  onPaneClick,
 }: GraphRendererProps) {
   // xyflow's prop types reject `undefined` under exactOptionalPropertyTypes,
   // so the optional handler props are passed via conditional spread — only
@@ -104,6 +113,7 @@ export function GraphRenderer({
       {...(onNodesDelete !== undefined && { onNodesDelete })}
       {...(onEdgesDelete !== undefined && { onEdgesDelete })}
       {...(onNodeDragStop !== undefined && { onNodeDragStop })}
+      {...(onPaneClick !== undefined && { onPaneClick })}
       nodesDraggable={editable}
       nodesConnectable={editable}
       elementsSelectable={editable}
