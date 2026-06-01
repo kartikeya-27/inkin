@@ -20,15 +20,15 @@ test.describe('delete-cascade', () => {
   test('Delete on a selected node removes the node + incident edges and fires one onChange', async ({
     page,
   }) => {
-    // Initial: 5 non-cluster nodes (Idea, Sketch, Ship + the two
-    // notes-cluster children Constraint and Open question per the
-    // editable sample), 2 edges (Idea→Sketch, Sketch→Ship).
+    // Initial: 4 non-cluster nodes (Idea, Sketch, Ship + Constraint
+    // inside the context cluster per the Phase 21 editable sample), 3
+    // edges (Idea→Sketch, Sketch→Ship, Sketch→Constraint dashed).
     const initialNodes = page.locator(
       '.react-flow__node.react-flow__node-rect, .react-flow__node.react-flow__node-terminal',
     )
-    await expect(initialNodes).toHaveCount(5)
+    await expect(initialNodes).toHaveCount(4)
     const initialEdges = page.locator('.react-flow__edge')
-    await expect(initialEdges).toHaveCount(2)
+    await expect(initialEdges).toHaveCount(3)
 
     // Select the middle node (Sketch — id 'b') by clicking it. xyflow
     // updates selection on click.
@@ -44,14 +44,14 @@ test.describe('delete-cascade', () => {
     // doesn't matter much here; xyflow handles deleteKeyCode itself.
     await page.keyboard.press('Delete')
 
-    // After the cascade: 4 non-cluster nodes remain (a, c + the 2
-    // notes children), 0 edges (both pointed at b).
+    // After the cascade: 3 non-cluster nodes remain (a, c, Constraint).
+    // All three edges pointed at b, so 0 edges remain.
     await expect(page.locator('.react-flow__node[data-id="b"]')).toHaveCount(0)
     await expect(
       page.locator(
         '.react-flow__node.react-flow__node-rect, .react-flow__node.react-flow__node-terminal',
       ),
-    ).toHaveCount(4)
+    ).toHaveCount(3)
     await expect(page.locator('.react-flow__edge')).toHaveCount(0)
 
     // Exactly one onChange — single dispatch covering the cascade.

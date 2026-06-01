@@ -37,10 +37,11 @@ test.describe('cross-cluster drag — schema readback through Inspector', () => 
   test('a node seeded with cluster="notes" reads as cluster="notes" in the Inspector', async ({
     page,
   }) => {
-    // The editable sample seeds n1 + n2 with `cluster: 'notes'`. Verify
-    // the Inspector reads the schema correctly — this is the
-    // "Inspector is schema-authoritative" gate that any cluster-
-    // reassignment proof depends on.
+    // The editable sample (Phase 21) seeds n1 with `cluster: 'notes'`
+    // (the cluster id stays 'notes' for schema-stability; user-visible
+    // label is 'context'). Verify the Inspector reads the schema
+    // correctly — this is the "Inspector is schema-authoritative" gate
+    // that any cluster-reassignment proof depends on.
     await page.locator('.react-flow__node[data-id="n1"]').click()
     const inspector = page.getByTestId('inkin-inspector')
     await expect(inspector.getByLabel('Cluster')).toHaveValue('notes')
