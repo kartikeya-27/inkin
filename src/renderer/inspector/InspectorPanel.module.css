@@ -2,8 +2,11 @@
  * InspectorPanel chrome. Absolutely positioned overlay inside the
  * DiagramStudio wrapper (Decision #6) so consumers' outer layout doesn't
  * need to allocate space. Fixed width with min/max guards; below the
- * responsive breakpoint (Phase 10 finalizes), the panel transitions to a
- * bottom-sheet via media query.
+ * responsive breakpoint, the panel docks to the bottom as a sheet.
+ *
+ * Phase 10 polish: smooth slide-in entrance, styled scrollbar in the
+ * body, and a focused respect for `prefers-reduced-motion` (animation
+ * disabled when the user opts out).
  */
 
 .root {
@@ -23,6 +26,7 @@
   color: var(--inkin-text-primary);
   z-index: 10;
   overflow: hidden;
+  animation: inkinInspectorEnter 180ms ease-out;
 }
 
 .positionRight {
@@ -31,6 +35,40 @@
 
 .positionLeft {
   left: 12px;
+}
+
+@keyframes inkinInspectorEnter {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Left-docked panel slides in from the opposite direction so the entrance
+ * always reads as "coming from the edge it docks to". */
+.positionLeft {
+  animation-name: inkinInspectorEnterLeft;
+}
+
+@keyframes inkinInspectorEnterLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+  }
 }
 
 .header {
@@ -55,11 +93,32 @@
   gap: 12px;
   padding: 12px;
   overflow-y: auto;
+  /* Styled scrollbar — tight + theme-aware. Firefox + WebKit syntax
+   * coexist; neither falls back to the OS default in modern browsers. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--inkin-border-node-strong) transparent;
+}
+
+.body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: var(--inkin-border-node-strong);
+  border-radius: 3px;
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: var(--inkin-accent-primary);
 }
 
 /* Sub-480px viewports: dock the panel to the bottom as a sheet rather
- * than eat 280 px of canvas width. Phase 10 will polish heights and
- * scroll behavior; this is the minimum for the Phase 6 commit. */
+ * than eat 280 px of canvas width. The entrance slides up from the
+ * bottom in this mode, matching the dock edge. */
 @media (max-width: 480px) {
   .root {
     top: auto;
@@ -70,5 +129,17 @@
     max-width: none;
     max-height: 50vh;
     border-radius: var(--inkin-node-radius) var(--inkin-node-radius) 0 0;
+    animation-name: inkinInspectorEnterBottom;
+  }
+}
+
+@keyframes inkinInspectorEnterBottom {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

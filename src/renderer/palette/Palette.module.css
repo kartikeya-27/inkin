@@ -1,10 +1,11 @@
 /*
  * Palette toolbar. Same overlay chrome aesthetic as InspectorPanel but
- * narrower (just two tool buttons) and dockable left (vertical column)
- * or top (horizontal row).
+ * narrower (two tool buttons) and dockable left (vertical column) or
+ * top (horizontal row).
  *
- * Phase 10 finalizes responsive behavior; this commit ships the resting
- * dock + button stacking, which is enough for Phase 8's wiring.
+ * Phase 10 polish: subtle slide-in entrance matching the dock edge,
+ * `prefers-reduced-motion` opt-out, and a sub-480px responsive variant
+ * that swaps to a top row.
  */
 
 .root {
@@ -17,12 +18,14 @@
   border-radius: var(--inkin-node-radius);
   box-shadow: var(--inkin-shadow-node);
   z-index: 10;
+  animation: inkinPaletteEnter 180ms ease-out;
 }
 
 .positionLeft {
   top: 12px;
   left: 12px;
   flex-direction: column;
+  animation-name: inkinPaletteEnterLeft;
 }
 
 .positionTop {
@@ -30,6 +33,44 @@
   left: 50%;
   transform: translateX(-50%);
   flex-direction: row;
+  animation-name: inkinPaletteEnterTop;
+}
+
+@keyframes inkinPaletteEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes inkinPaletteEnterLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes inkinPaletteEnterTop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    animation: none;
+  }
 }
 
 .tool {
@@ -38,8 +79,9 @@
   justify-content: flex-start;
 }
 
-/* Sub-480px viewports: dock to the top edge as a tight row so a vertical
- * column on a narrow screen doesn't push the canvas too far down. */
+/* Sub-480px viewports: swap to a top row so a vertical column on a narrow
+ * screen doesn't push the canvas too far down. The entrance fades in
+ * from the top to match the dock edge. */
 @media (max-width: 480px) {
   .positionLeft {
     top: 12px;
@@ -47,9 +89,21 @@
     right: 12px;
     flex-direction: row;
     justify-content: flex-start;
+    animation-name: inkinPaletteEnterTopNarrow;
   }
   .tool {
     min-width: 0;
     flex: 0 0 auto;
+  }
+}
+
+@keyframes inkinPaletteEnterTopNarrow {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
