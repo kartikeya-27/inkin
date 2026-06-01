@@ -1,14 +1,16 @@
 'use client'
 
 import { ReactFlowProvider } from '@xyflow/react'
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Diagram, DiagramInput } from '../schema/types'
 import { buildArrowKeyNudger, useKeymap } from './a11y'
 import styles from './DiagramStudio.module.css'
 import { EditingProvider, useFlowSync } from './editing'
 import { type ToSvgOptions, toSvg } from './export/svg'
 import { GraphRenderer } from './GraphRenderer'
+import { InspectorPanel, type InspectorPosition } from './inspector'
 import { cn } from './lib/cn'
+import { Palette, type PalettePosition } from './palette'
 import { InkinStoreProvider } from './store'
 import type { InkinThemeName } from './themes'
 
@@ -88,6 +90,22 @@ export interface DiagramStudioProps {
   readonly minimap?: boolean
   /** Show the xyflow viewport controls (zoom in/out, fit-view). Default `true`. */
   readonly controls?: boolean
+  /**
+   * Inspector panel position. New in 0.4.0. Defaults:
+   *   - `'right'` when `onChange` is provided (editable mode)
+   *   - `'off'` when read-only (no `onChange`)
+   *
+   * Explicit `'right'` or `'left'` is honored only in editable mode; in
+   * read-only mode the panel cannot mount because no `EditingProvider`
+   * exists, and a one-time `console.warn` surfaces the misconfiguration.
+   */
+  readonly inspector?: InspectorPosition | 'off'
+  /**
+   * Palette toolbar position. New in 0.4.0. Same defaults as `inspector`:
+   * `'left'` when editable, `'off'` when read-only. Same warning behavior
+   * when explicitly set in read-only mode.
+   */
+  readonly palette?: PalettePosition | 'off'
   /** Additional CSS class for the wrapper element. */
   readonly className?: string | undefined
 }
@@ -114,6 +132,13 @@ interface DiagramStudioInnerProps {
    * DiagramStudio (for the data-inkin-theme attribute + SVG export ref).
    */
   readonly wrapperRef: React.RefObject<HTMLDivElement | null>
+  /**
+   * Resolved Inspector position (defaults already applied by the outer
+   * DiagramStudio). `'off'` means do not mount the panel.
+   */
+  readonly inspector: InspectorPosition | 'off'
+  /** Resolved Palette position. `'off'` means do not mount the toolbar. */
+  readonly palette: PalettePosition | 'off'
 }
 
 /**
@@ -129,6 +154,8 @@ function DiagramStudioInner({
   controls,
   onChange,
   wrapperRef,
+  inspector,
+  palette,
 }: DiagramStudioInnerProps) {
   const sync = useFlowSync({
     value,
@@ -189,7 +216,9 @@ function DiagramStudioInner({
 
   // EditingContext is mounted ONLY in editable mode — its presence is the
   // signal that BaseNode / LabeledEdge use to decide between an
-  // <EditableLabel> (editable) and a static <div> (read-only).
+  // <EditableLabel> (editable) and a static <div> (read-only). The 0.4.0
+  // Inspector + Palette mount inside the provider too so they can consume
+  // EditorActionsContext (sibling to EditingContext).
   if (!sync.isEditable) return renderer
   return (
     <EditingProvider
@@ -199,6 +228,10 @@ function DiagramStudioInner({
       dispatchAssignCluster={sync.dispatchAssignCluster}
     >
       {renderer}
+      {palette !== 'off' && <Palette position={palette} />}
+      {inspector !== 'off' && sync.parsedDiagram !== null && (
+        <InspectorPanel diagram={sync.parsedDiagram} position={inspector} />
+      )}
     </EditingProvider>
   )
 }
@@ -239,11 +272,38 @@ export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
       layout = 'auto',
       minimap = false,
       controls = true,
+      inspector: inspectorProp,
+      palette: paletteProp,
       className,
     },
     ref,
   ) {
     const wrapperRef = useRef<HTMLDivElement>(null)
+    const isEditable = onChange !== undefined
+
+    // Default-derive: chrome shows by default in editable mode, hides in
+    // read-only mode. Consumers opt out per-panel via 'off'.
+    const inspector: InspectorPosition | 'off' = inspectorProp ?? (isEditable ? 'right' : 'off')
+    const palette: PalettePosition | 'off' = paletteProp ?? (isEditable ? 'left' : 'off')
+
+    // One-time warning when a consumer explicitly mounts chrome but didn't
+    // supply onChange — the panels can't function (no EditingProvider, no
+    // dispatcher verbs) and silently dropping them would be confusing.
+    // Tracked via ref so the warning fires once per mounted instance, not
+    // on every render.
+    const warnedRef = useRef(false)
+    const explicitlyMisconfigured =
+      !isEditable &&
+      ((inspectorProp !== undefined && inspectorProp !== 'off') ||
+        (paletteProp !== undefined && paletteProp !== 'off'))
+    useEffect(() => {
+      if (explicitlyMisconfigured && !warnedRef.current) {
+        warnedRef.current = true
+        console.warn(
+          '[inkin] DiagramStudio: `inspector` / `palette` props have no effect without `onChange` (read-only mode). Provide an onChange callback to enable the editor chrome, or remove the prop.',
+        )
+      }
+    }, [explicitlyMisconfigured])
 
     useImperativeHandle(
       ref,
@@ -268,6 +328,8 @@ export const DiagramStudio = forwardRef<DiagramStudioRef, DiagramStudioProps>(
               minimap={minimap}
               controls={controls}
               wrapperRef={wrapperRef}
+              inspector={inspector}
+              palette={palette}
               {...(onChange !== undefined && { onChange })}
             />
           </ReactFlowProvider>
