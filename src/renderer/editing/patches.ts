@@ -149,19 +149,40 @@ export interface AddNodePatch {
 }
 
 /**
- * Append a new (empty) cluster to the diagram. The cluster starts with no
- * children; `translate.ts`'s `EMPTY_CLUSTER_SIZE` fallback handles initial
- * rendering. Re-parenting nodes into the new cluster happens via the
- * Inspector's cluster dropdown or via cross-cluster drag-and-drop (both
- * produce `SetField{ kind: 'node-cluster' }` patches).
+ * Append a new (empty) cluster to the diagram.
  *
- * The `clusters` array on the schema is optional; the reducer creates it
- * lazily if absent.
+ * Phase 19 (0.4.0): the patch carries optional `position` / `size` so a
+ * palette-placed cluster lands exactly where the user clicked and stays
+ * the size they chose. When omitted, `translate.ts` derives both from the
+ * bounding box of children (and falls back to `EMPTY_CLUSTER_SIZE` for
+ * zero-children clusters), matching the 0.3.0 behavior.
+ *
+ * Re-parenting nodes into the new cluster still happens via the
+ * Inspector's cluster dropdown or via cross-cluster drag-and-drop
+ * (`SetField{ kind: 'node-cluster' }`). The `clusters` array on the
+ * schema is optional; the reducer creates it lazily if absent.
  */
 export interface AddClusterPatch {
   readonly kind: 'AddCluster'
   readonly id: string
   readonly label: string
+  readonly position?: { readonly x: number; readonly y: number }
+  readonly size?: { readonly width: number; readonly height: number }
+}
+
+/**
+ * Move an existing cluster to a new absolute canvas position.
+ *
+ * Phase 19 (0.4.0): clusters now carry their own `position` in the schema,
+ * so dragging the cluster header emits a `MoveCluster` instead of a
+ * `MoveNode`. Child nodes stored relative to the cluster get their
+ * apparent positions translated automatically by the renderer — no
+ * companion `MoveNode` patches are required.
+ */
+export interface MoveClusterPatch {
+  readonly kind: 'MoveCluster'
+  readonly clusterId: string
+  readonly position: { readonly x: number; readonly y: number }
 }
 
 export type Patch =
@@ -173,3 +194,4 @@ export type Patch =
   | SetFieldPatch
   | AddNodePatch
   | AddClusterPatch
+  | MoveClusterPatch

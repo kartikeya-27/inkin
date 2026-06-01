@@ -421,11 +421,24 @@ export function useFlowSync(options: UseFlowSyncOptions): UseFlowSyncResult {
 
       for (const change of changes) {
         if (change.type === 'position' && change.dragging === false && change.position) {
-          // Drag-end. Convert xyflow's (possibly cluster-relative) position
-          // back to schema-absolute using the cluster's xyflow origin.
+          // Drag-end. Two paths:
+          //   - regular node → MoveNode (with cluster-relative→absolute fixup
+          //     when the dragged node has a parent cluster)
+          //   - cluster      → MoveCluster (Phase 19 — clusters carry their
+          //     own position now)
           const xyNodes = nodesRef.current
           const node = xyNodes.find((n) => n.id === change.id)
           if (node === undefined) continue
+          if (node.type === 'cluster') {
+            // Clusters are always top-level in xyflow (no parentId), so the
+            // dragged position is already absolute.
+            dispatchPatch({
+              kind: 'MoveCluster',
+              clusterId: change.id,
+              position: { x: change.position.x, y: change.position.y },
+            })
+            continue
+          }
           const parent = node.parentId ? xyNodes.find((n) => n.id === node.parentId) : undefined
           const absolute = xyflowPositionToAbsolute(change.position, parent?.position)
           dispatchPatch({ kind: 'MoveNode', nodeId: change.id, position: absolute })

@@ -140,13 +140,20 @@ export function translate(diagram: Diagram): TranslatedDiagram {
   // 1. Cluster nodes first — xyflow renders them behind children (z-index = array order).
   const clusterNodes: XyNode<InkinClusterData>[] = (diagram.clusters ?? []).map((cluster) => {
     const children = childrenByCluster.get(cluster.id) ?? []
-    const bounds = computeClusterBounds(children)
+    // Phase 19 (0.4.0): explicit Cluster.position / Cluster.size win over
+    // the bbox-from-children derivation. Backwards-compat — diagrams that
+    // omit both still get the 0.3.0 auto-bounds behavior.
+    const derived = computeClusterBounds(children)
+    const x = cluster.position?.x ?? derived.x
+    const y = cluster.position?.y ?? derived.y
+    const width = cluster.size?.width ?? derived.width
+    const height = cluster.size?.height ?? derived.height
     return {
       id: cluster.id,
       type: 'cluster',
-      position: { x: bounds.x, y: bounds.y },
+      position: { x, y },
       data: { label: cluster.label },
-      style: { width: bounds.width, height: bounds.height },
+      style: { width, height },
       // 0.4.0 (Phase 18): clusters are first-class — selectable + draggable
       // when editing is on. We let GraphRenderer's top-level `nodesDraggable`
       // / `elementsSelectable` flags govern (set from `editable`), same as

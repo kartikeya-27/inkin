@@ -6,6 +6,7 @@ import type {
   DeleteClusterPatch,
   DeleteEdgePatch,
   DeleteNodePatch,
+  MoveClusterPatch,
   MoveNodePatch,
   Patch,
   SetFieldPatch,
@@ -57,6 +58,8 @@ export function applyPatch(diagram: Diagram, patch: Patch): Diagram {
       return applyAddNode(diagram, patch)
     case 'AddCluster':
       return applyAddCluster(diagram, patch)
+    case 'MoveCluster':
+      return applyMoveCluster(diagram, patch)
   }
 }
 
@@ -327,15 +330,56 @@ function applyAddNode(diagram: Diagram, patch: AddNodePatch): Diagram {
 // --- AddCluster --------------------------------------------------------------
 
 /**
- * Append an empty cluster to the diagram. The `clusters` array on the
- * schema is optional; the reducer creates it lazily if the diagram has
- * never had clusters before. The Inspector + cross-cluster drag are how
- * nodes subsequently get reparented into the new cluster — this patch
- * only creates the container.
+ * Append a (typically empty) cluster to the diagram. The `clusters` array
+ * on the schema is optional; the reducer creates it lazily if the diagram
+ * has never had clusters before.
+ *
+ * Phase 19 (0.4.0): the patch may carry explicit `position` / `size`. When
+ * present, the new cluster materializes at those exact coordinates and the
+ * translator uses them directly instead of bbox-deriving from children.
+ * Both fields are optional — palette-placed clusters set position but not
+ * size (defaults to EMPTY_CLUSTER_SIZE in translate.ts).
  */
 function applyAddCluster(diagram: Diagram, patch: AddClusterPatch): Diagram {
-  const next: Cluster = { id: patch.id, label: patch.label }
+  const next: Cluster = {
+    id: patch.id,
+    label: patch.label,
+    ...(patch.position !== undefined && { position: patch.position }),
+    ...(patch.size !== undefined && { size: patch.size }),
+  }
   const clusters = diagram.clusters === undefined ? [next] : [...diagram.clusters, next]
+  return { ...diagram, clusters }
+}
+
+// --- MoveCluster -------------------------------------------------------------
+
+/**
+ * Set a cluster's `position` field to `patch.position`. No-op when the
+ * cluster doesn't exist or when the position is unchanged (the latter
+ * short-circuits a spurious onChange when xyflow fires a drag-end at
+ * the same coordinates the cluster started at — e.g., a click without
+ * an actual drag).
+ *
+ * Children's stored coordinates are absolute and stay unchanged by this
+ * patch — the renderer translates them relative to the cluster's
+ * position at render time, so moving the cluster doesn't require
+ * companion patches on the children. The visual effect is "cluster
+ * and its contents move as one unit", matching xyflow's group drag
+ * semantics.
+ */
+function applyMoveCluster(diagram: Diagram, patch: MoveClusterPatch): Diagram {
+  if (diagram.clusters === undefined) return diagram
+  const target = diagram.clusters.find((cluster) => cluster.id === patch.clusterId)
+  if (target === undefined) return diagram
+  const current = target.position
+  if (current !== undefined && current.x === patch.position.x && current.y === patch.position.y) {
+    return diagram
+  }
+  const clusters = diagram.clusters.map<Cluster>((cluster) =>
+    cluster.id === patch.clusterId
+      ? { ...cluster, position: { x: patch.position.x, y: patch.position.y } }
+      : cluster,
+  )
   return { ...diagram, clusters }
 }
 

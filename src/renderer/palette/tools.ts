@@ -86,7 +86,11 @@ export function handlePlacementClick(options: HandlePlacementClickOptions): void
   if (mode === 'placing-cluster') {
     const existing = new Set((diagram.clusters ?? []).map((cluster) => cluster.id))
     const id = mintUniqueId(existing)
-    dispatchAddCluster({ id, label: DEFAULT_CLUSTER_LABEL })
+    // Phase 19: pass the click point as `position` so the new cluster
+    // materializes where the user clicked instead of (0, 0). Size is
+    // omitted on purpose — translate.ts falls back to EMPTY_CLUSTER_SIZE
+    // for a default. The user can resize via cluster-resize later (1.x).
+    dispatchAddCluster({ id, label: DEFAULT_CLUSTER_LABEL, position: point })
     exitPlacementMode()
     return
   }
