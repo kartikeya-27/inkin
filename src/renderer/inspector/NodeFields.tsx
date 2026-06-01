@@ -100,11 +100,7 @@ export function NodeFields({ nodes, clusters, actions }: NodeFieldsProps) {
   return (
     <>
       {nodes.length > 1 && (
-        <div
-          className={styles.bulkBanner}
-          role="status"
-          data-testid="inkin-inspector-bulk-banner"
-        >
+        <div className={styles.bulkBanner} role="status" data-testid="inkin-inspector-bulk-banner">
           Applies to all {nodes.length} selected nodes
         </div>
       )}

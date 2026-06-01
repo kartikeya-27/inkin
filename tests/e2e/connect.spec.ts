@@ -22,8 +22,9 @@ test.describe('drag-to-connect', () => {
   test('dragging from a → c source handle to target handle creates a new edge', async ({
     page,
   }) => {
-    // Wait for xyflow to paint the initial edges.
-    await expect(page.locator('.react-flow__edge')).toHaveCount(2)
+    // Wait for xyflow to paint the initial edges. Phase 21 seed: 3 edges
+    // (Idea→Sketch, Sketch→Ship, Sketch→Constraint dashed).
+    await expect(page.locator('.react-flow__edge')).toHaveCount(3)
 
     // Hover over node a so its handles fade in (opacity: 1).
     const nodeA = page.locator('.react-flow__node[data-id="a"]')
@@ -53,8 +54,8 @@ test.describe('drag-to-connect', () => {
     })
     await page.mouse.up()
 
-    // New edge added; exactly one onChange fired.
-    await expect(page.locator('.react-flow__edge')).toHaveCount(3)
+    // New edge added; exactly one onChange fired (3 seed + 1 new = 4).
+    await expect(page.locator('.react-flow__edge')).toHaveCount(4)
     await expect(page.getByTestId('onchange-count')).toHaveText('1')
 
     // The new edge gets an editable empty-label slot rendered as the

@@ -222,8 +222,7 @@ function DiagramStudioInner({
   // edge labels behind the panels in default state — flex reserves real
   // space so every node + label stays visible.
   const showPalette = sync.isEditable && palette !== 'off'
-  const showInspector =
-    sync.isEditable && inspector !== 'off' && sync.parsedDiagram !== null
+  const showInspector = sync.isEditable && inspector !== 'off' && sync.parsedDiagram !== null
   const paletteOnTop = showPalette && palette === 'top'
 
   const innerRow = (

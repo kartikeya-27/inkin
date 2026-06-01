@@ -12,14 +12,15 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
-## [0.4.0] — 2026-06-01
+## [0.4.0] — 2026-06-02
 
 The editor-chrome release. `<DiagramStudio>` in editable mode (with
 `onChange` provided) now auto-mounts a contextual Inspector panel and
 a creation Palette toolbar. Both can be repositioned or disabled
-per-prop. The 0.3.0 surface is preserved: a consumer who upgrades
-without supplying `onChange` sees zero behavior change; a consumer
-who already supplies `onChange` gets the chrome by default.
+per-prop. Clusters are first-class — selectable, draggable, deletable,
+inline-renamable. The 0.3.0 surface is preserved: a consumer who
+upgrades without supplying `onChange` sees zero behavior change; a
+consumer who already supplies `onChange` gets the chrome by default.
 
 ### Added
 
@@ -29,24 +30,50 @@ who already supplies `onChange` gets the chrome by default.
   EdgeFields (label / style), ClusterFields (label), EmptyState.
   Multi-select shows the shared value or a `multiple values`
   placeholder when values differ; commit applies to every selected
-  entity, micro-batched into one `onChange`. Mounts as an absolute-
-  positioned overlay inside the `DiagramStudio` wrapper (no outer-
-  layout impact). Sub-480px viewports auto-swap to a bottom-sheet via
-  CSS media query.
+  entity, micro-batched into one `onChange`. The header carries a
+  **"Clear"** button next to the title (renders only when something
+  is selected) so the user has a deterministic way out of any
+  selection state. NodeFields renders a bulk-edit banner
+  ("Applies to all N selected nodes") when N > 1, matching Figma's
+  multi-select inspect pattern.
 - **`<Palette>`** — creation toolbar with two tool buttons (Add Node,
   Add Cluster). `aria-pressed` mirrors the active mode. Document-
   level Esc + `visibilitychange` listeners reset to `idle` defensively
   so an armed tool can't survive a tab switch or a stray click.
 - **Click-to-place** — when a Palette tool is armed, clicking on the
   canvas pane projects the click via `screenToFlowPosition`, mints a
-  collision-free 6-char id, and dispatches `AddNode` (with `position`)
-  / `AddCluster`. Mode resets to `idle` after a successful placement.
+  collision-free 6-char id, dispatches the matching Add patch, and
+  **auto-selects the new entity** so the Inspector opens populated
+  for the immediate rename. Mode resets to `idle` after a successful
+  placement. For Add Node, the dispatch also looks up any cluster
+  whose bounds contain the click point and parents the new node into
+  it (smallest-area wins on overlap).
+- **Cluster first-class behavior** — clusters are now selectable
+  via the header strip, draggable from the same header strip
+  (xyflow `dragHandle: '.inkin-cluster-drag-handle'`), deletable
+  via Delete key, and inline-renamable via header double-click.
+  Body remains `pointer-events: none` so child nodes that visually
+  sit inside the cluster keep their own click targets. Cluster
+  deletion cascades via the existing `DeleteCluster` reducer arm:
+  children stay in the diagram with their `cluster` field stripped,
+  matching tldraw / Excalidraw frame-deletion contracts.
+- **Cluster.position + Cluster.size** — clusters carry their own
+  position + size in the schema (both optional). When set, they
+  win over the bbox-from-children derivation. Palette-added clusters
+  materialize at the click point with `EMPTY_CLUSTER_SIZE` default
+  and stay there on subsequent renders. Dragging child nodes no
+  longer reshapes the parent cluster's bounds. `schemaVersion`
+  stays `1` — additive optional fields are non-breaking.
+- **`MoveCluster` patch** — drag-end on a cluster dispatches
+  `MoveCluster` (analogous to `MoveNode` for regular nodes). The
+  reducer arm short-circuits no-op writes the same way `MoveNode`
+  does, so a click without an actual drag doesn't fire spurious
+  `onChange` calls.
 - **Cross-cluster drag-and-drop** — on `onNodeDragStop`, xyflow's
   `getIntersectingNodes` runs, the smallest-area intersecting cluster
   is picked, and a `SetField{node-cluster}` patch dispatches only
   when the assignment changes. Microtask batching collapses the new
-  patch with the existing `MoveNode` into one `onChange`. Read-only /
-  no-op guards on every path.
+  patch with the existing `MoveNode` into one `onChange`.
 - **Two new `<DiagramStudio>` props**:
   - `inspector?: 'right' | 'left' | 'off'` — defaults to `'right'`
     when `onChange` is supplied, `'off'` when read-only.
@@ -54,12 +81,17 @@ who already supplies `onChange` gets the chrome by default.
     `onChange` is supplied, `'off'` when read-only.
   - Explicit non-`'off'` value in read-only mode logs a one-time
     `console.warn` so the misconfiguration isn't silent.
-- **Three new patch variants** behind the existing pure reducer:
+- **Multi-select via Shift+click** — `<ReactFlow>` is mounted with
+  `multiSelectionKeyCode={'Shift'}` in editable mode (xyflow's
+  default was OS-specific — Control/Meta — which Shift-first users
+  silently lost). Matches Figma / Sketch / tldraw / Excalidraw
+  convention.
+- **Four new patch variants** behind the existing pure reducer:
   - `AddNodePatch` — palette-driven node creation (id, label,
     optional position / shape / cluster).
-  - `AddClusterPatch` — empty cluster creation (id, label).
-    Re-parenting nodes happens via the Inspector dropdown or
-    cross-cluster drag.
+  - `AddClusterPatch` — cluster creation (id, label, optional
+    position / size).
+  - `MoveClusterPatch` — cluster drag-end.
   - Extended `SetFieldTarget` — four new `kind`s: `node-shape`,
     `edge-style`, `node-cluster` (empty-string value unassigns),
     `cluster-label`. Every existing 0.3.0 `SetField` call site
@@ -77,6 +109,15 @@ who already supplies `onChange` gets the chrome by default.
 
 ### Changed
 
+- **Chrome layout** — Inspector + Palette are now **flex siblings of
+  the canvas** inside the `DiagramStudio` wrapper, not absolute
+  overlays. The original 0.4.0 plan called for overlay positioning
+  to spare the consumer's outer layout; the cost (Ship node hidden
+  behind Inspector; "refine" / "release" edge labels clipped) was
+  caught during smoke and is fixed here. Consumer outer dimensions
+  are still untouched — the change is internal to the wrapper's
+  flex tree. Sub-480 px viewports flip to a column layout so neither
+  panel eats the canvas width on mobile.
 - `<EditingProvider>` now mounts a sibling `<EditorActionsContext>`
   internally exposing `dispatchSetField` / `dispatchAddNode` /
   `dispatchAddCluster` / `dispatchAssignCluster`. The existing
@@ -85,39 +126,47 @@ who already supplies `onChange` gets the chrome by default.
 - `InteractionSlice` — the deliberately-empty 0.3.0 stub is now
   filled: `mode` (idle / placing-node / placing-cluster),
   `placementOrigin`, `hoveredClusterId`, plus four explicit-verb
-  actions (`enterPlacementMode`, `exitPlacementMode`,
-  `setPlacementOrigin`, `setHoveredCluster`). All setters preserve
-  state identity on no-op writes so per-frame `onNodeDrag` ticks
-  don't trigger React re-renders.
+  actions. All setters preserve state identity on no-op writes so
+  per-frame `onNodeDrag` ticks don't trigger React re-renders.
+- **Editable playground sample** — redesigned. Was "main pipeline +
+  two disconnected nodes inside a `notes` cluster"; the disconnected
+  nodes read as a layout bug. New shape: main pipeline + one
+  annotation node ("Constraint") inside a `context` cluster, linked
+  back to Sketch via a dashed "note" edge so the cluster's purpose
+  reads off the canvas without explanation. Schema cluster id stays
+  `'notes'` for stability — only the user-visible label changed.
 
 ### Verified
 
 - 358 vitest tests (0.3.0: 187) + 22 Playwright e2e (0.3.0: 13).
-- Bundle: **inkin-only code 11.23 kB brotli** against a new 25 kB
+- Bundle: **inkin-only code 12.06 kB brotli** against the 25 kB
   ceiling (excludes react / xyflow / zustand / dagre / html-to-image
-  / zod). CSS: 4.45 kB brotli against 30 kB.
-- React surface (incl. xyflow + transitives): 131.63 kB ESM / 143.74
-  kB CJS — both well under the existing 200 kB ceiling.
+  / zod). CSS: 4.62 kB brotli against 30 kB. React surface (with
+  all deps): 144.72 kB brotli.
 - Zero new runtime dependencies vs 0.3.0.
 - CSS Modules leak gate confirms no unhashed class names from
   internal modules escape into `dist/styles.css`.
 - Consumer-install smoke (mirrors 0.3.0's Phase 16a): packed tarball
   installed via `npm install file:…` into a fresh Vite+React+TS app;
-  Inspector + Palette + cross-cluster drag all exercised end-to-end.
+  every Phase 17–21 affordance exercised end-to-end.
 
 ### Deferred
 
-- AddCluster bounds — the drag-rect placement gesture is consumed for
-  intent only; the rect coords aren't persisted on the schema in
-  0.4.0 (cluster materializes empty, user reparents via Inspector
-  dropdown or cross-cluster drag). Schema-side bounds storage lands
-  with the elkjs nested-cluster work in 1.2.0.
+- Cluster resize handles via xyflow's `<NodeResizer>` — clusters
+  carry the schema-side `size` field starting in 0.4.0, but the
+  direct visual-resize affordance is deferred to keep the bundle
+  budget headroom. 0.5.0 territory.
 - Cluster id rename + parent-cluster reassignment — ClusterFields
   ships with the `label` field only in 0.4.0; id rename + parent
   changes land in 0.5.0+ alongside the Mermaid bridge work.
 - Undo / redo — Patch reducer is already structurally undo-friendly
   (every variant is invertible) but the history stack ships in
   1.1.0 as planned.
+- Cross-OS multi-select (Ctrl on Win, Cmd on Mac, Shift everywhere)
+  — xyflow v12's `KeyCode` type accepts only AND-combinations, not
+  ORs, so we pin to `Shift` (universal design-tool convention).
+  Lifting this needs either an upstream xyflow API change or a
+  custom click-handler bypass; not in scope for 0.4.0.
 
 ### Internal
 
@@ -128,6 +177,9 @@ who already supplies `onChange` gets the chrome by default.
   (~180ms ease-out, dock-edge directionality, opt-out via
   `prefers-reduced-motion: reduce`).
 - Styled scrollbar inside the Inspector body (thin, theme-aware).
+- Cluster body uses `pointer-events: none` so child node clicks
+  fall through cleanly; the 28-px header strip carries
+  `pointer-events: all` and is the only drag-handle.
 
 ## [0.3.0] — 2026-05-30
 

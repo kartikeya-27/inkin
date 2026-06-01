@@ -2,7 +2,7 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.3.0` — the **editing release**. `<DiagramStudio>` now accepts an `onChange` prop for full in-place editing (drag, drag-to-connect, Delete-key cascade, double-click inline label editing, keyboard a11y). Omit `onChange` for byte-for-byte 0.2.0 read-only behavior. Inspector / Palette chrome lands in `0.4.0`. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.4.0` — the **editor-chrome release**. `<DiagramStudio>` in editable mode auto-mounts an **Inspector** panel and a **Palette** toolbar (flex siblings of the canvas, not overlays). Clusters are first-class: selectable, draggable from a header strip, deletable, inline-renamable. Schema gained optional `Cluster.position` + `Cluster.size`. Omit `onChange` for byte-for-byte 0.2.0 read-only behavior. See [the release roadmap](#release-roadmap) below.
 
 ## What this gives you (today, at 0.4.0)
 
@@ -145,28 +145,40 @@ What turns on with `onChange`:
 - **Click + Delete / Backspace** removes a node along with every incident edge (cascade) and prunes flows that reference removed edges.
 - **Double-click** a label, sublabel, or edge label to edit it inline. Enter or blur commits, Esc cancels. Empty strings are valid.
 - **Tab** to focus a node, **arrows** to nudge it by 10 px, **Enter** to edit its label, **Esc** to cancel-edit or clear selection.
-- **Inspector + Palette auto-mount** (new in 0.4.0). The Inspector reflects the current selection — type into a TextInput and press Enter to commit a label change; pick a dropdown to change shape / style / cluster. The Palette has Add Node + Add Cluster tools — click a tool, then click the canvas to place. Opt out per-panel:
+- **Inspector + Palette auto-mount** (new in 0.4.0). The Inspector reflects the current selection — type into a TextInput and press Enter to commit a label change; pick a dropdown to change shape / style / cluster. The Palette has Add Node + Add Cluster tools — click a tool, then click the canvas to place. Newly-placed entities are auto-selected so the Inspector opens populated for the rename. Opt out per-panel:
 
   ```tsx
   <DiagramStudio value={diagram} onChange={setDiagram} inspector="off" />
   ```
+- **Clusters are first-class** (new in 0.4.0) — click the header to select, drag the header to move (children follow), double-click to rename inline, Delete to remove (children kept, `cluster` field cleared). Add Node inside a cluster auto-parents the new node.
+- **Shift-click** to multi-select. Inspector header shows the count + a Clear button; bulk edits flow through one microtask-batched `onChange`. A visible "Applies to all N selected nodes" banner appears before you type so the bulk effect is never silent.
 
 ### Editor chrome (Inspector + Palette)
 
-When you supply `onChange`, two panels mount on top of the canvas inside the same wrapper element:
+When you supply `onChange`, two panels mount as flex siblings of the canvas inside the same wrapper element — they reserve their own width so no node or edge label is ever hidden behind them:
 
 ```
-┌─ palette ──────────────────────────────────────── inspector ─┐
-│  ┌───────────┐                                  ┌──────────┐ │
-│  │  + Node   │                                  │  NODE    │ │
-│  │  + Cluster│      [diagram canvas]            │  Label   │ │
-│  └───────────┘                                  │  Shape ▼ │ │
-│                                                 │  Cluster▼│ │
-│                                                 └──────────┘ │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│ ┌───────────┐ ┌───────────────────────────┐ ┌───────────────┐ │
+│ │  + Node   │ │                           │ │ NODE   Clear  │ │
+│ │  + Cluster│ │     [diagram canvas]      │ │ Label         │ │
+│ └───────────┘ │                           │ │ Shape   ▼     │ │
+│               │                           │ │ Cluster ▼     │ │
+│               └───────────────────────────┘ └───────────────┘ │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-Both are absolute-positioned overlays inside the wrapper — they don't push the canvas around, and they auto-collapse to a bottom sheet on viewports narrower than 480 px. Pass `inspector="left"` / `palette="top"` to flip orientation, or `"off"` to suppress per panel. Explicit non-`"off"` values in read-only mode log a one-time `console.warn`.
+Sub-480 px viewports auto-collapse to a stacked column so neither panel eats the canvas width on mobile. Pass `inspector="left"` / `palette="top"` to flip orientation, or `"off"` to suppress per panel. Explicit non-`"off"` values in read-only mode log a one-time `console.warn`.
+
+**Cluster affordances** (all in editable mode):
+- Click the cluster's header to select it.
+- Drag from the header to move the cluster — children move with it.
+- Double-click the header to rename inline.
+- Delete (or Backspace) removes the cluster; child nodes stay in the diagram with their `cluster` field cleared.
+- Click "+ Cluster" in the Palette, then click on the canvas — the new cluster materializes at the click point.
+- Click "+ Node" in the Palette, then click inside an existing cluster's bounds — the new node auto-parents into that cluster.
+
+**Multi-select**: Shift-click extends the selection. The Inspector header shows the count and a Clear button; bulk edits commit to every selected entity via one microtask-batched `onChange`, with a visible "Applies to all N selected nodes" banner before you type.
 
 Every editing event flows through a pure schema reducer and is re-validated before `onChange` fires — invalid diagrams can never escape from the editor. Persistence is whatever your `onChange` does: a `useState`, a `localStorage.setItem`, a `fetch` to your backend — see the [examples app](examples/src/App.tsx) for a working playground.
 
