@@ -106,29 +106,41 @@ jobs:
 
       # Cache the Playwright browser binaries between runs. Cache key
       # includes the @playwright/test version so a Playwright upgrade
-      # invalidates the cache (browser revs are tied to it).
+      # invalidates the cache (browser revs are tied to it), AND a hash
+      # of the `test:e2e:install` script so changes to which browsers
+      # we install (e.g., adding firefox + webkit to the original
+      # chromium-only set) bust the cache and rebuild from scratch
+      # rather than serving a partial set.
       - name: Get @playwright/test version
         id: pw-version
         run: |
           ver=$(node -p "require('./node_modules/@playwright/test/package.json').version")
           echo "version=$ver" >> $GITHUB_OUTPUT
 
+      - name: Compute install-script hash
+        id: pw-install-hash
+        run: |
+          h=$(node -p "require('./package.json').scripts['test:e2e:install']" | sha256sum | cut -c1-12)
+          echo "hash=$h" >> $GITHUB_OUTPUT
+
       - name: Cache Playwright browsers
         uses: actions/cache@v5
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}-${{ steps.pw-install-hash.outputs.hash }}
 
-      - name: Install Playwright browsers (chromium only)
+      - name: Install Playwright browsers (chromium + firefox + webkit)
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm test:e2e:install
 
-      # Ensure system deps for Chromium are installed even on cache hit
-      # (the cached browsers don't include APT packages).
+      # Ensure system deps for all three engines are installed even on
+      # cache hit (the cached browser binaries don't include APT packages,
+      # which differ per engine — chromium needs Chromium libs, webkit
+      # needs GStreamer + WebKitGTK, firefox needs its own set).
       - name: Install Playwright system deps
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        run: pnpm exec playwright install-deps chromium firefox webkit
 
       - name: Run Playwright e2e
         run: pnpm test:e2e
