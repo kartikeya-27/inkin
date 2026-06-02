@@ -303,6 +303,41 @@ describe('useFlowSync — write path: deletion dispatch', () => {
   })
 })
 
+/**
+ * About the missing browser-pointer-event e2e:
+ *
+ * From 0.3.0 through 0.4.1 we kept a Playwright spec
+ * (`tests/e2e/connect.spec.ts`) that drove `page.mouse.{down,move,up}` over
+ * the source handle to gate the full chain: real browser pointer events →
+ * xyflow's connection state machine → `useFlowSync.onConnect` →
+ * `ConnectEdge` patch → consumer `onChange`. It went `test.fixme` in 0.4.0
+ * after the chrome animation moved handle positions mid-test.
+ *
+ * The 0.4.1+ root-cause investigation: xyflow v12 listens for
+ * `pointerdown` (not `mousedown`) on handles — see
+ * `@xyflow/system`'s `onPointerDown` + `getEventPosition`. Playwright's
+ * `page.mouse` and Chrome DevTools Protocol's `Input.dispatchMouseEvent`
+ * both synthesize `mousedown`/`mousemove`/`mouseup` only; neither
+ * generates `PointerEvent`s that xyflow's handler recognizes. A jsdom
+ * integration test can't fill the gap either — xyflow's "closest handle"
+ * hit-test at pointerup relies on `getBoundingClientRect`, which returns
+ * zero in jsdom.
+ *
+ * What's covered without it:
+ *   - This file's `ConnectEdge dispatch` describe — `onConnect` →
+ *     `ConnectEdge` patch → `onChange` via direct hook-output calls (the
+ *     contract every consumer relies on).
+ *   - `tests/renderer/editing/apply-patch.test.ts` — reducer correctness
+ *     including the parallel-edge auto-id-generation rule.
+ *   - The examples playground — manually exercised every release. Drag
+ *     a handle from a node to another; verify a new edge appears and
+ *     the "onChange fired" counter ticks.
+ *
+ * If a future release wants automated coverage of the browser-pointer
+ * layer, the path forward is to drive xyflow's internal store via
+ * `useReactFlow` from inside an injected playground-level test hook —
+ * not to wrestle with Playwright's event synthesis.
+ */
 describe('useFlowSync — write path: ConnectEdge dispatch', () => {
   it('dispatches ConnectEdge on onConnect with implicit id when free', async () => {
     const onChange = vi.fn()
