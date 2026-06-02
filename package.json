@@ -1,6 +1,6 @@
 {
   "name": "@inkin/core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Editable React diagrams from a typed schema. v0.4.0 adds the editor chrome on top of 0.3.0's editing primitives: a contextual Inspector panel (label / sublabel / shape / cluster), a Palette toolbar (Add Node / Add Cluster), shared form primitives, and cross-cluster drag-and-drop reassignment. Auto-mount when `onChange` is provided; opt out per-panel via `inspector=\"off\"` / `palette=\"off\"`. The framework-agnostic schema kernel remains at the @inkin/core/schema subpath.",
   "license": "MIT",
   "author": "kartikeya27",
