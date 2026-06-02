@@ -12,6 +12,51 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
+## [0.4.1] — 2026-06-02
+
+A focused patch release that closes the last visible polish gap in
+0.4.0 and brings the CI workflows in line with GitHub's Node 24
+deprecation timeline. No public API changes; consumers upgrading from
+0.4.0 see no behavior change beyond the chrome painting cleanly on
+first load.
+
+### Fixed
+
+- **Chrome flicker on initial paint** (Defect #10 from the 0.4.0 plan
+  v2 backlog). The Inspector + Palette enter-keyframes started at
+  `opacity: 0` and faded to `1` over 180 ms, which made the chrome
+  invisible during the first ~350 ms of the page load. Dropped the
+  opacity portion of `@keyframes inkinInspectorEnter` /
+  `inkinInspectorEnterLeft` / `inkinInspectorEnterBottom` /
+  `inkinPaletteEnterLeft` / `inkinPaletteEnterTop`. The translate-X /
+  translate-Y "settle from the dock edge" motion is preserved for
+  the prop-toggle case (e.g., `inspector="off"` → `"right"`), just
+  no fade. Reproducible on both dev and production builds before;
+  fully gone on both after.
+
+### Changed
+
+- **CI + publish workflows** opt in to GitHub's Node 24 JS-action
+  runner via the `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` env var.
+  Removes the deprecation warning on every run ahead of the
+  2026-09-16 cutoff GitHub announced for Node 20 in v4 of
+  `actions/checkout`, `actions/setup-node`, `pnpm/action-setup`,
+  `actions/cache`, and `actions/upload-artifact`. Workflow logic is
+  otherwise unchanged.
+
+### Deferred
+
+- `tests/e2e/connect.spec.ts` (drag-to-connect through Playwright's
+  mouse + dragTo) stays `test.fixme`. Re-investigated against the
+  Defect #10 chrome fix — xyflow's connection state machine still
+  doesn't engage from either `page.mouse.{down,move,up}` or
+  `locator.dragTo()` in the 0.4.0 flex-layout. The `ConnectEdge`
+  patch + dispatcher are still gated by
+  `tests/renderer/editing/sync.test.tsx` via direct hook-output
+  calls, so the underlying behavior remains verified. Next cleanup
+  pass will drive xyflow programmatically through `useStore` rather
+  than through Playwright's pointer simulation.
+
 ## [0.4.0] — 2026-06-02
 
 The editor-chrome release. `<DiagramStudio>` in editable mode (with

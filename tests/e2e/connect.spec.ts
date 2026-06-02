@@ -19,14 +19,21 @@ test.describe('drag-to-connect', () => {
     await expect(page.getByTestId('onchange-count')).toHaveText('0')
   })
 
-  // FIXME: Playwright mouse-driven drag-to-connect is flaky against the
-  // Phase 17 flex layout — xyflow's handle hit-testing fires
-  // intermittently depending on browser timing between the chrome
-  // slide-in animation and the bbox query. The underlying ConnectEdge
-  // patch is exercised by tests/renderer/editing/sync.test.tsx via
-  // synthetic onConnect calls, so the schema-side behavior is gated.
-  // 0.4.1 cleanup item: re-write this spec to dispatch synthetic
-  // pointer events bypassing the bbox-driven mouse path.
+  // Investigated again at 0.4.1 prep: re-ran with the Defect #10 chrome
+  // animation fix in place (chrome no longer has an opacity fade-in
+  // that could shift handle positions mid-test) — connect.spec still
+  // fails 3/3, and Playwright's high-level `locator.dragTo()` also
+  // doesn't fire xyflow's connection state machine. The cause is
+  // xyflow's handle hit-testing: the .react-flow__handle bbox is
+  // visible at the expected coordinates with full pointer-events, but
+  // xyflow's onConnect doesn't fire from either page.mouse.{down,
+  // move, up} or locator.dragTo() in this layout. The schema-side
+  // ConnectEdge patch + dispatcher behavior is gated by
+  // tests/renderer/editing/sync.test.tsx via direct hook-output
+  // calls, so the underlying inkin functionality stays verified.
+  // Deferred to a future release where we can rewrite this to drive
+  // xyflow programmatically via its useStore handle instead of
+  // through Playwright's pointer simulation.
   test.fixme('dragging from a → c source handle to target handle creates a new edge', async ({
     page,
   }) => {
