@@ -1,0 +1,70 @@
+# Dependabot config — automated dependency PRs.
+#
+# Why grouped + weekly: an indie React library doesn't need 30 individual
+# patch PRs per week. Grouping minor/patch updates into one PR per
+# dependency-type per week keeps the review surface small while still
+# catching security + ecosystem updates promptly. Major bumps stay
+# ungrouped (one PR each) because they can carry breaking changes that
+# deserve their own review + changelog discussion.
+#
+# Why monthly for GitHub Actions: workflow actions move slower than npm
+# packages, and a monthly cadence is enough for the deprecation cycles
+# we care about (GitHub announces these months in advance — see the
+# Node 24 opt-in we did in 0.4.1 for the actions/* v4 line).
+#
+# Limit of 5 open PRs per ecosystem: forces us to clear the queue
+# before Dependabot opens new ones. Keeps the dashboard from drowning
+# if a busy week hits.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      # Group all non-major production deps into one weekly PR.
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      # Same for dev dependencies (testing, build tooling, linter).
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    # Majors stay outside the groups — they get their own PRs so a
+    # potential breaking-change review isn't bundled with routine bumps.
+    ignore:
+      # React 18 → 19 took deliberate planning; don't let dependabot
+      # propose React 20+ on autopilot. Re-evaluate manually when the
+      # next major arrives.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      # All actions updates land in one PR per month.
+      github-actions:
+        patterns:
+          - "*"
