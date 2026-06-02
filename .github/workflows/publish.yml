@@ -10,10 +10,8 @@ permissions:
   id-token: write
   contents: read
 
-# Force GitHub's JS-action runner to use Node 24 ahead of GitHub's
-# 2026-09-16 deprecation deadline. See the same env block in ci.yml.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+# The Node 24 opt-in env from 0.4.1 was made redundant by the action
+# version bumps in commit 8c33ab9 (PR #6) — see the same note in ci.yml.
 
 jobs:
   publish:
