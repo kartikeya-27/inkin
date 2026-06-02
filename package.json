@@ -78,7 +78,7 @@
     "@types/react-dom": "^19.0.0",
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.0",
-    "jsdom": "^25.0.0",
+    "jsdom": "^29.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "size-limit": "^11.1.0",
