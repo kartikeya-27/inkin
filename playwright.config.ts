@@ -13,9 +13,12 @@ import { defineConfig, devices } from '@playwright/test'
  *     Enter, with all the focus shifts and pointer-capture interactions
  *     that xyflow does in the real browser.
  *
- * Chromium-only by default — the goal is to gate the behavior, not
- * test every engine. Adding Firefox / WebKit later is a one-line
- * addition to the `projects` array; the specs are engine-agnostic.
+ * 0.4.x: matrix expanded to Chromium + Firefox + WebKit so pointer
+ * events, drag-and-drop, animation timing, and CSS feature support
+ * are gated against all three engines a real consumer might be on.
+ * The 21 specs are written engine-agnostically; per-browser skips
+ * (if any are ever needed) carry their own inline reason at the
+ * spec site rather than being hidden in this config.
  *
  * Server boot: relies on the `examples/` Vite dev server. CI installs
  * dependencies, builds `@inkin/core`, then `pnpm test:e2e` starts via
@@ -53,6 +56,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
     },
   ],
 })

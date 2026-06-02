@@ -120,15 +120,17 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
 
-      - name: Install Playwright browsers (chromium only)
+      - name: Install Playwright browsers (chromium + firefox + webkit)
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm test:e2e:install
 
-      # Ensure system deps for Chromium are installed even on cache hit
-      # (the cached browsers don't include APT packages).
+      # Ensure system deps for all three engines are installed even on
+      # cache hit (the cached browser binaries don't include APT packages,
+      # which differ per engine — chromium needs Chromium libs, webkit
+      # needs GStreamer + WebKitGTK, firefox needs its own set).
       - name: Install Playwright system deps
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        run: pnpm exec playwright install-deps chromium firefox webkit
 
       - name: Run Playwright e2e
         run: pnpm test:e2e
