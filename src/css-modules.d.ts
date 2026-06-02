@@ -16,3 +16,18 @@ declare module '*.module.css' {
   const classes: { readonly [key: string]: string }
   export default classes
 }
+
+/**
+ * Plain `*.css` side-effect imports — no exports, just inclusion in the
+ * dependency graph (e.g. `import './renderer/styles.css'` in `src/index.ts`
+ * which pulls the consolidated stylesheet into Rolldown's CSS extraction
+ * pass).
+ *
+ * TypeScript 5.x tolerates this without an ambient declaration; TS 6
+ * tightened TS2882 ("Cannot find module or type declarations for
+ * side-effect import") and requires the declaration even though nothing
+ * is imported. Declaring it preemptively so the TypeScript 6 upgrade
+ * (currently ignored in `.github/dependabot.yml`) lands without a
+ * library-side patch.
+ */
+declare module '*.css'

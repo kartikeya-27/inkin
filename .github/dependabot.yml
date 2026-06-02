@@ -43,6 +43,10 @@ updates:
           - "patch"
     # Majors stay outside the groups — they get their own PRs so a
     # potential breaking-change review isn't bundled with routine bumps.
+    # Specific majors that require coordinated upgrades across multiple
+    # packages (or carry known breaking changes for our usage) are
+    # ignored at the major-version level so dependabot doesn't keep
+    # re-opening already-rejected PRs every week.
     ignore:
       # React 18 → 19 took deliberate planning; don't let dependabot
       # propose React 20+ on autopilot. Re-evaluate manually when the
@@ -50,6 +54,26 @@ updates:
       - dependency-name: "react"
         update-types: ["version-update:semver-major"]
       - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 6 tightened TS2882 for plain `*.css` side-effect
+      # imports — our `src/index.ts` line `import './renderer/styles.css'`
+      # would need an ambient `declare module '*.css'` (which this PR
+      # adds to `src/css-modules.d.ts` preemptively) plus a coordinated
+      # check across the rest of the codebase for other TS 6 strictness
+      # changes. Re-evaluate manually when scheduling the TS 6 upgrade
+      # work.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # @vitejs/plugin-react 6 requires Vite 6+ in lockstep (it imports
+      # `vite/internal` which doesn't exist in Vite 5). Until we plan a
+      # Vite 6 migration, don't accept the plugin major. When ready,
+      # bump both manually in the same PR.
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      # Vite 6 is the dependent half of the @vitejs/plugin-react upgrade
+      # above; pinning both prevents Dependabot from proposing one
+      # without the other.
+      - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"

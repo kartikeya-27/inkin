@@ -38,22 +38,16 @@
   animation-name: inkinPaletteEnterTop;
 }
 
-/* Phase 29 — same flicker fix as InspectorPanel: drop the opacity
- * fade-in that made the chrome invisible during the initial mount.
- * The remaining translate gives a settle motion when the toolbar
- * remounts via the playground's palette="off" / "left" / "top"
- * toggle, without obscuring the chrome on the cold-load first paint. */
-@keyframes inkinPaletteEnter {
-  /* base animation: no-op visual; the dock-specific keyframes below
-   * provide the dock-edge slide. Kept named so existing @keyframes
-   * lookup from `.root` doesn't fail on browsers without a matching
-   * named keyframe. */
-  from {
-  }
-  to {
-  }
-}
-
+/* Phase 29 dropped the opacity fade-in that caused the chrome flicker;
+ * Phase 31 (follow-up to PR #5) removes the previously no-op base
+ * `inkinPaletteEnter` keyframe entirely. `.root` references it via
+ * `animation: inkinPaletteEnter 180ms ease-out`, but every concrete
+ * position class (`.positionLeft` / `.positionTop`) overrides
+ * `animation-name`, so the base name is never resolved at render
+ * time — the empty-block warning newer biome flagged was on dead code.
+ * The `.root` declaration relies on browsers gracefully ignoring an
+ * unknown animation-name when no concrete position class has matched
+ * yet (which is the case only momentarily during mount). */
 @keyframes inkinPaletteEnterLeft {
   from {
     transform: translateX(-8px);

@@ -15,14 +15,10 @@ concurrency:
 permissions:
   contents: read
 
-# Force GitHub's JS-action runner to use Node 24 ahead of GitHub's
-# 2026-09-16 deprecation deadline for Node 20. v4 of the actions we use
-# (checkout, setup-node, pnpm/action-setup, cache, upload-artifact) still
-# manifest Node 20 in their action.yml; this env var opts them into Node 24
-# without forcing a major version bump on every action. Drop this once the
-# actions move their default to Node 24 in their own v5/v6 releases.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+# The Node 24 opt-in env we added in 0.4.1 was made redundant by the
+# automated upgrade of actions/checkout @ v6, pnpm/action-setup @ v6,
+# actions/setup-node @ v6, actions/cache @ v5, and actions/upload-artifact
+# @ v7 — all of which run on Node 24 natively. No env override needed.
 
 jobs:
   verify:
