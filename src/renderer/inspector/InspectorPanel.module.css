@@ -35,24 +35,29 @@
   animation-name: inkinInspectorEnterLeft;
 }
 
+/* Phase 29 — keyframes intentionally drop the `opacity: 0` starting frame.
+ * The opacity fade caused a visible "flash of invisible chrome" on the
+ * first paint (panel mounts during React's initial render, opacity 0
+ * holds for the first 180 ms, then fades in — read as a chrome flicker
+ * on cold loads, plus a layout shift impression even though the flex
+ * layout reserves space throughout). Keeping just the translateX slide
+ * gives a subtle "settle from the dock edge" motion when the panel
+ * remounts (e.g., user toggles inspector="off" → "right") without
+ * making the panel disappear during the initial mount. */
 @keyframes inkinInspectorEnter {
   from {
-    opacity: 0;
     transform: translateX(8px);
   }
   to {
-    opacity: 1;
     transform: translateX(0);
   }
 }
 
 @keyframes inkinInspectorEnterLeft {
   from {
-    opacity: 0;
     transform: translateX(-8px);
   }
   to {
-    opacity: 1;
     transform: translateX(0);
   }
 }
@@ -230,11 +235,9 @@
 
 @keyframes inkinInspectorEnterBottom {
   from {
-    opacity: 0;
     transform: translateY(8px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
