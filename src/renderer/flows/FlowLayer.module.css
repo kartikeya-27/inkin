@@ -37,13 +37,27 @@
 }
 
 .flowToken {
-  /* Phase 2: static positioning at `offset-distance: 0%`. The actual
-   * `offset-path: path(...)` is set per-token via the
-   * `--inkin-flow-path` custom property declared inline by the React
-   * component, so this rule only carries the static-state defaults.
-   * Phase 3 will add the `animation: flowTraverse ...` rule that
-   * advances `offset-distance` from 0% to 100%. */
+  /* The per-flow path + duration + delay come from the React
+   * component as inline custom properties. The CSS rule references
+   * them so each token gets independent timing from the same shared
+   * `flowTraverse` keyframes — no per-instance keyframe regeneration. */
   offset-path: var(--inkin-flow-path);
+  /* Phase 3: continuous loop along the composed path. The `linear`
+   * timing function matches every observability tool's data-flow
+   * convention (data movement shouldn't accelerate or decelerate —
+   * that reads as physics, not data). The `--inkin-flow-duration` /
+   * `--inkin-flow-delay` fallbacks (`7000ms` / `0ms`) match the
+   * schema's `Flow.duration.default(7000)` / `Flow.delay.default(0)`
+   * so the visual fallback aligns with the schema fallback when a
+   * consumer somehow renders without those custom properties set. */
+  animation: flowTraverse var(--inkin-flow-duration, 7000ms) linear infinite
+    var(--inkin-flow-delay, 0ms);
+  /* `offset-distance: 0%` is the resting / initial state — it pins
+   * the token at the path start when the animation is paused (Phase 5
+   * reduced-motion gate sets `animation: none`, and this rule then
+   * keeps the token visible as a static dot at the path start, per
+   * the master-plan spec). During normal playback the keyframes'
+   * `from` state overrides this for the first frame. */
   offset-distance: 0%;
   offset-rotate: 0deg;
   /* Soft glow makes the token read as "active / data moving" — it
@@ -51,4 +65,19 @@
    * overrides `color` gets a matching halo without extra plumbing.
    * Cheap (≈0.1 kB CSS); meaningful UX contribution. */
   filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* `flowTraverse` advances the token from the start of its `offset-path`
+ * to the end. Each token sets its own `animation-duration` /
+ * `animation-delay` via the inline custom properties so multiple flows
+ * (e.g., the architecture sample's `request` + `queue-drain` parallel
+ * pair) can stagger their starts and run at different speeds while
+ * sharing the same keyframe definition. */
+@keyframes flowTraverse {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
 }
