@@ -1,0 +1,78 @@
+# CodeQL static analysis for `@inkin/core`.
+#
+# What this gates that the rest of the CI doesn't:
+#   - Standard JavaScript/TypeScript vulnerability patterns (prototype
+#     pollution, ReDoS, unsafe deserialization, command injection vectors
+#     in build scripts, XSS shapes in any string-interpolated DOM access).
+#   - Anything in the GitHub CodeQL "security-and-quality" suite that's
+#     mature enough to ship by default — catches a long tail of subtle
+#     issues that biome's lint pass doesn't.
+#
+# Trigger shape:
+#   - Push to main: scans the merged state, results show up in the
+#     repo's Security tab.
+#   - PR to main: scans the proposed change, surfaces findings inline.
+#   - Weekly cron (Mondays 04:00 UTC): catches regressions in CodeQL's
+#     own ruleset against unchanged code (new rules added by GitHub).
+#
+# Why not autobuild: the JS/TS analysis path doesn't need a compile
+# step — CodeQL ingests source directly. Skipping autobuild keeps the
+# job fast (~1 min instead of 3-4) and dodges the occasional autobuild
+# failure on workspaces with non-standard layouts.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 04:00 UTC — picks a low-traffic time so concurrency
+    # doesn't fight any release-day work.
+    - cron: '0 4 * * 1'
+
+# Least-privilege defaults, then grant write only on the security-events
+# stream which CodeQL needs to upload findings to the Security tab.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript / TypeScript)
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for CodeQL to read repo + write findings + (in some
+      # private-repo configs) read its own action's results.
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          # The combined JS/TS pack — handles both .js and .ts sources in
+          # one analysis, which is what every modern TS project wants.
+          languages: javascript-typescript
+          # security-and-quality goes beyond the default "security-extended"
+          # to include code-quality findings (dead code, missing checks
+          # the project maintainer probably wants to know about). Cost is
+          # a slightly noisier results list, value is catching things
+          # standard biome rules don't.
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          # Categorize the run so multiple language scans (if we add
+          # more later) show up as separate entries in the Security tab
+          # rather than overwriting each other.
+          category: '/language:javascript-typescript'
