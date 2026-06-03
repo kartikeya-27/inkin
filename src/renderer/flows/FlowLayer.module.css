@@ -1,0 +1,54 @@
+/*
+ * FlowLayer — the SVG overlay carrying animated flow tokens.
+ *
+ * Positioning model (Phase 2 establishes the basics; Phase 3 adds the
+ * animation rule on `.flowToken`):
+ *
+ *   - `position: absolute; inset: 0` — fills the React Flow root.
+ *     `<FlowLayer>` is mounted as the last child of `<ReactFlow>` so
+ *     the React Flow root is the SVG's offset parent.
+ *
+ *   - `transform-origin: 0 0` matches xyflow's viewport convention.
+ *     The inline `transform: translate(x, y) scale(zoom)` set by the
+ *     React component places this SVG's user coordinate system in 1:1
+ *     correspondence with xyflow's flow-coordinate space — the path
+ *     strings emitted by `composeFlowPath` work directly without
+ *     extra math.
+ *
+ *   - `pointer-events: none` — the layer is decorative; clicks must
+ *     fall through to nodes / edges / the canvas pane underneath.
+ *
+ *   - `overflow: visible` — flow tokens can move outside the React
+ *     Flow root's bounds during pan/zoom; clipping them would visibly
+ *     pop tokens out of existence at the edges.
+ */
+
+.root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  transform-origin: 0 0;
+  /* Sit above the React Flow root's own panel UI (controls/minimap
+   * at z-index 4 in xyflow's internal stack) is NOT desired — those
+   * panels should always be on top. We sit just above the edges layer
+   * (z-index 1 default), comfortably below the panels. */
+  z-index: 3;
+}
+
+.flowToken {
+  /* Phase 2: static positioning at `offset-distance: 0%`. The actual
+   * `offset-path: path(...)` is set per-token via the
+   * `--inkin-flow-path` custom property declared inline by the React
+   * component, so this rule only carries the static-state defaults.
+   * Phase 3 will add the `animation: flowTraverse ...` rule that
+   * advances `offset-distance` from 0% to 100%. */
+  offset-path: var(--inkin-flow-path);
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  /* Soft glow makes the token read as "active / data moving" — it
+   * picks up the flow's own color via `currentColor` so a flow that
+   * overrides `color` gets a matching halo without extra plumbing.
+   * Cheap (≈0.1 kB CSS); meaningful UX contribution. */
+  filter: drop-shadow(0 0 4px currentColor);
+}
