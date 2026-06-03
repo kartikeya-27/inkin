@@ -107,18 +107,10 @@ test.describe('flows — animation runs end-to-end', () => {
     // custom properties by the React component, then read by the CSS
     // animation longhand. If either link breaks the computed values
     // revert to the rule's fallback (7s / 0s).
-    const requestDur = await requestToken.evaluate(
-      (el) => getComputedStyle(el).animationDuration,
-    )
-    const requestDelay = await requestToken.evaluate(
-      (el) => getComputedStyle(el).animationDelay,
-    )
-    const queueDur = await queueDrainToken.evaluate(
-      (el) => getComputedStyle(el).animationDuration,
-    )
-    const queueDelay = await queueDrainToken.evaluate(
-      (el) => getComputedStyle(el).animationDelay,
-    )
+    const requestDur = await requestToken.evaluate((el) => getComputedStyle(el).animationDuration)
+    const requestDelay = await requestToken.evaluate((el) => getComputedStyle(el).animationDelay)
+    const queueDur = await queueDrainToken.evaluate((el) => getComputedStyle(el).animationDuration)
+    const queueDelay = await queueDrainToken.evaluate((el) => getComputedStyle(el).animationDelay)
 
     expect(requestDur).toBe('6.5s')
     expect(requestDelay).toBe('0s')

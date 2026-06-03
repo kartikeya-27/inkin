@@ -1,301 +1,114 @@
-import type { Edge as XyEdge, Node as XyNode } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import { composeFlowPath } from '../../../src/renderer/flows/compose-path'
-import type { Flow } from '../../../src/schema/types'
 
 /**
- * Phase 1 of 0.5.0 — pure `composeFlowPath` helper.
+ * `composeFlowPath` — string-concatenation contract.
  *
- * Determinism is the gate. The helper is exhaustively exercised against
- * known geometric inputs so a future xyflow `getSmoothStepPath` shape
- * change fails this suite immediately (instead of letting the animation
- * silently misbehave at render time).
+ * Phase 10 refactor (architecture change): the helper used to take
+ * `(flow, xyNodes, xyEdges)` and re-compute SVG paths from node
+ * positions. That approach can't match xyflow's internal handle-bounds
+ * math (handle width, handle offset, node-vs-rendered-height
+ * differences), producing tokens 6-12 px off the visible edges. The
+ * post-Phase-10 helper takes the `d` attribute strings xyflow has
+ * already rendered (`FlowLayer` reads them straight off
+ * `.react-flow__edge[data-id] > path`) and just concatenates them, so
+ * the engine's own geometry is the source of truth.
+ *
+ * This suite pins the only logic this helper still owns: M-stripping +
+ * defensive null returns.
  */
 
-// Fixtures: three rect nodes in a horizontal row at y=0, default 180×60.
-// Idea  Sketch  Ship
-// (0,0) (240,0) (480,0)
-const nodes: XyNode[] = [
-  {
-    id: 'a',
-    type: 'rect',
-    position: { x: 0, y: 0 },
-    data: { label: 'Idea' },
-    measured: { width: 180, height: 60 },
-  },
-  {
-    id: 'b',
-    type: 'rect',
-    position: { x: 240, y: 0 },
-    data: { label: 'Sketch' },
-    measured: { width: 180, height: 60 },
-  },
-  {
-    id: 'c',
-    type: 'rect',
-    position: { x: 480, y: 0 },
-    data: { label: 'Ship' },
-    measured: { width: 180, height: 60 },
-  },
-  {
-    id: 'd',
-    type: 'rect',
-    position: { x: 0, y: 200 },
-    data: { label: 'Aside' },
-    measured: { width: 180, height: 60 },
-  },
-]
-
-const edges: XyEdge[] = [
-  { id: 'a->b', source: 'a', target: 'b', type: 'labeled' },
-  { id: 'b->c', source: 'b', target: 'c', type: 'labeled' },
-  { id: 'a->c', source: 'a', target: 'c', type: 'labeled' }, // non-adjacent in a 1-step path
-  { id: 'a->d', source: 'a', target: 'd', type: 'labeled' }, // vertical-ish
-]
-
-function flow(id: string, edgeIds: string[]): Flow {
-  return { id, edges: edgeIds, duration: 7000, delay: 0 }
-}
-
-describe('composeFlowPath — single-edge', () => {
-  it('returns the raw xyflow path for a one-edge flow', () => {
-    const d = composeFlowPath({ flow: flow('f1', ['a->b']), xyNodes: nodes, xyEdges: edges })
-    expect(d).not.toBeNull()
-    // getSmoothStepPath always returns a `d` starting with `M`.
-    expect(d?.startsWith('M')).toBe(true)
+describe('composeFlowPath — empty / null inputs', () => {
+  it('returns null for an empty array', () => {
+    expect(composeFlowPath([])).toBeNull()
   })
 
-  it('the path connects source-right to target-left for a horizontal edge', () => {
-    const d = composeFlowPath({ flow: flow('f1', ['a->b']), xyNodes: nodes, xyEdges: edges })
-    expect(d).not.toBeNull()
-    // Source point: a is at (0,0), 180×60 → right midpoint (180, 30).
-    // Target point: b is at (240,0), 180×60 → left midpoint (240, 30).
-    // The path must start at the source point (M 180 30) and end at
-    // the target point (... 240 30) somewhere in the string.
-    expect(d).toMatch(/^M\s*180[\s,]+30/)
-    expect(d).toMatch(/240[\s,]+30\s*$/)
+  it('returns null when any segment is an empty string', () => {
+    expect(composeFlowPath([''])).toBeNull()
+    expect(composeFlowPath(['M0 0L10 0', ''])).toBeNull()
+    expect(composeFlowPath(['', 'M10 0L20 0'])).toBeNull()
   })
 })
 
-describe('composeFlowPath — multi-edge concatenation', () => {
-  it('joins two adjacent edges into one continuous path with one M total', () => {
-    const d = composeFlowPath({
-      flow: flow('f-chain', ['a->b', 'b->c']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).not.toBeNull()
-    // Exactly one leading M for the whole composed path — subsequent
-    // segments are re-anchored with `L` so the token traces continuously.
-    const mCount = (d?.match(/M/g) ?? []).length
-    expect(mCount).toBe(1)
+describe('composeFlowPath — single-segment passthrough', () => {
+  it('returns a one-segment input verbatim', () => {
+    const segment = 'M246 93.234L266 93.234L 294,93.234Q 300,93.234 300,99.234'
+    expect(composeFlowPath([segment])).toBe(segment)
   })
 
-  it('joins three edges into one continuous path with one M total', () => {
-    const d = composeFlowPath({
-      flow: flow('f-three', ['a->b', 'b->c', 'a->c']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).not.toBeNull()
-    const mCount = (d?.match(/M/g) ?? []).length
+  it('passes through unusual but valid path shapes (curves, multiple commands)', () => {
+    const segment = 'M0 0Q 10 10 20 0L30 0C40 10,50 10,60 0Z'
+    expect(composeFlowPath([segment])).toBe(segment)
+  })
+})
+
+describe('composeFlowPath — multi-segment concatenation', () => {
+  it('joins two segments into one continuous path with exactly one M', () => {
+    const a = 'M0 0L10 0L20 0'
+    const b = 'M20 0L30 0L40 0'
+    const out = composeFlowPath([a, b])
+    expect(out).not.toBeNull()
+    const mCount = (out?.match(/M/g) ?? []).length
     expect(mCount).toBe(1)
+    expect(out?.startsWith('M0 0')).toBe(true)
   })
 
-  it('non-adjacent edge sequence still composes (visual teleport accepted)', () => {
-    // b->c then a->b is intentionally backwards / non-adjacent.
-    // The schema permits this; the composed path produces a straight
-    // L from c's left edge back to a's right edge, which is what we
-    // tell consumers the renderer will draw.
-    const d = composeFlowPath({
-      flow: flow('f-back', ['b->c', 'a->b']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).not.toBeNull()
-    const mCount = (d?.match(/M/g) ?? []).length
-    expect(mCount).toBe(1)
+  it('rewrites every subsequent segment`s leading M as L', () => {
+    const a = 'M0 0L100 0'
+    const b = 'M100 0L200 0'
+    const c = 'M200 0L300 0'
+    const out = composeFlowPath([a, b, c])
+    expect(out).not.toBeNull()
+    // Exactly one M total — original first segment's.
+    expect((out?.match(/M/g) ?? []).length).toBe(1)
+    // The rewritten join points (b's "M100 0" → "L 100 0", c's "M200 0"
+    // → "L 200 0") create three L-commands at those break-points: the
+    // first segment's `L100 0`, b's continuation `L 100 0`, b's own
+    // `L200 0`, c's continuation `L 200 0`, and c's own `L300 0`. The
+    // important invariant is that no `M` reappears past the first
+    // command, AND the join coordinates show up as `L` continuations.
+    expect(out).toMatch(/L\s*100\s+0/)
+    expect(out).toMatch(/L\s*200\s+0/)
+    expect(out).toMatch(/L\s*300\s+0/)
+  })
+
+  it('preserves the first segment intact and only mutates the continuations', () => {
+    const a = 'M5 5L15 15L25 25'
+    const b = 'M25 25L35 35'
+    const out = composeFlowPath([a, b])
+    expect(out?.startsWith(a)).toBe(true)
+  })
+
+  it('handles xyflow`s real-world path shape (comma + space separators)', () => {
+    // Sample from xyflow's `getSmoothStepPath` output in a real browser:
+    const a = 'M246 93.234375L266 93.234375L 294,93.234375Q 300,93.234375 300,99.234375'
+    const b = 'M546 267.234375L566 267.234375L600 267.234375L 634,267.234375'
+    const out = composeFlowPath([a, b])
+    expect(out).not.toBeNull()
+    expect((out?.match(/M/g) ?? []).length).toBe(1)
+    // The join is at b's start (546, 267.234) → becomes `L 546 267.234`.
+    expect(out).toMatch(/L\s*546\s+267\.234375/)
+  })
+})
+
+describe('composeFlowPath — defensive: malformed segments', () => {
+  it('passes a segment with no leading M through unchanged (defensive)', () => {
+    // If a future xyflow version emits a path that doesn't start with
+    // `M`, the helper still produces a string — wrong shape, but not
+    // null/crash. The Phase 9 Playwright spec is the gate against that
+    // ever shipping unnoticed.
+    const a = 'M0 0L10 0'
+    const b = 'L20 0L30 0' // no M
+    const out = composeFlowPath([a, b])
+    expect(out).not.toBeNull()
+    expect(out).toContain(a)
+    expect(out).toContain(b)
   })
 })
 
 describe('composeFlowPath — determinism', () => {
-  it('identical inputs produce identical output', () => {
-    const a = composeFlowPath({
-      flow: flow('f1', ['a->b', 'b->c']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    const b = composeFlowPath({
-      flow: flow('f1', ['a->b', 'b->c']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(a).toBe(b)
-  })
-
-  it('different flow ids with identical edge sequences produce identical paths', () => {
-    const a = composeFlowPath({
-      flow: flow('flow-x', ['a->b']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    const b = composeFlowPath({
-      flow: flow('flow-y', ['a->b']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    // Only `edges` should drive the geometry; id is render-side
-    // metadata, never path-side.
-    expect(a).toBe(b)
-  })
-})
-
-describe('composeFlowPath — defensive resolution failures', () => {
-  it('returns null when an edge id does not resolve', () => {
-    const d = composeFlowPath({
-      flow: flow('f', ['a->b', 'does-not-exist']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).toBeNull()
-  })
-
-  it('returns null when an edge resolves but its source node is missing', () => {
-    const orphanEdge: XyEdge = {
-      id: 'orphan->b',
-      source: 'orphan',
-      target: 'b',
-      type: 'labeled',
-    }
-    const d = composeFlowPath({
-      flow: flow('f', ['orphan->b']),
-      xyNodes: nodes,
-      xyEdges: [...edges, orphanEdge],
-    })
-    expect(d).toBeNull()
-  })
-
-  it('returns null when an edge resolves but its target node is missing', () => {
-    const orphanEdge: XyEdge = {
-      id: 'a->ghost',
-      source: 'a',
-      target: 'ghost',
-      type: 'labeled',
-    }
-    const d = composeFlowPath({
-      flow: flow('f', ['a->ghost']),
-      xyNodes: nodes,
-      xyEdges: [...edges, orphanEdge],
-    })
-    expect(d).toBeNull()
-  })
-
-  it('returns null for a flow with an empty `edges` array (defensive — schema enforces min(1))', () => {
-    // The schema's `flow.edges.min(1)` rejects this at parse time, so
-    // reaching the renderer with `edges: []` would only happen if a
-    // consumer bypasses validation. We still don't want to emit a
-    // path with no segments.
-    const d = composeFlowPath({
-      flow: { id: 'f', edges: [], duration: 7000, delay: 0 },
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).toBeNull()
-  })
-})
-
-describe('composeFlowPath — measured vs fallback dimensions', () => {
-  it('uses node.measured.width/height when present', () => {
-    const widened: XyNode = {
-      ...nodes[0],
-      measured: { width: 300, height: 80 },
-    } as XyNode
-    const widenedTarget: XyNode = {
-      ...nodes[1],
-      measured: { width: 300, height: 80 },
-    } as XyNode
-
-    const d = composeFlowPath({
-      flow: flow('f', ['a->b']),
-      xyNodes: [widened, widenedTarget],
-      xyEdges: edges,
-    })
-    expect(d).not.toBeNull()
-    // Source-right of a 300×80 node at (0,0) → (300, 40).
-    expect(d).toMatch(/^M\s*300[\s,]+40/)
-  })
-
-  it('falls back to NODE_WIDTH_FALLBACK / NODE_HEIGHT_FALLBACK when measured is missing', () => {
-    const unmeasured: XyNode = {
-      id: 'u',
-      type: 'rect',
-      position: { x: 0, y: 0 },
-      data: { label: 'U' },
-    }
-    const target: XyNode = {
-      id: 'v',
-      type: 'rect',
-      position: { x: 300, y: 0 },
-      data: { label: 'V' },
-    }
-    const edge: XyEdge = { id: 'u->v', source: 'u', target: 'v', type: 'labeled' }
-
-    const d = composeFlowPath({
-      flow: flow('f', ['u->v']),
-      xyNodes: [unmeasured, target],
-      xyEdges: [edge],
-    })
-    expect(d).not.toBeNull()
-    // Source-right of unmeasured node at (0,0) → uses 180×60 fallback → (180, 30).
-    expect(d).toMatch(/^M\s*180[\s,]+30/)
-  })
-})
-
-describe('composeFlowPath — geometric integrity across orientations', () => {
-  it('a horizontal flow path traces between source-right and target-left at the same Y', () => {
-    const d = composeFlowPath({ flow: flow('f', ['a->b']), xyNodes: nodes, xyEdges: edges })
-    expect(d).not.toBeNull()
-    // Both endpoints have Y=30 (vertical center of 60px-tall nodes).
-    // For a perfectly horizontal smooth-step path xyflow emits a
-    // straight line, which contains the substring "L 240 30" (target
-    // x with same Y).
-    expect(d).toContain('240')
-    expect(d).toContain('30')
-  })
-
-  it('a vertical-ish flow path involves both X and Y axis transitions', () => {
-    const d = composeFlowPath({
-      flow: flow('f', ['a->d']),
-      xyNodes: nodes,
-      xyEdges: edges,
-    })
-    expect(d).not.toBeNull()
-    // a at (0,0), d at (0,200), both 180×60.
-    // Source point (180, 30); target point (0, 230). Path must include
-    // a Y-transition through ~115 area (mid-step). Just assert the path
-    // body has more than one segment marker (L/Q/etc.) — proves
-    // getSmoothStepPath emitted a real multi-step path, not a straight
-    // line.
-    const segmentMarkers = (d?.match(/[LQ]/g) ?? []).length
-    expect(segmentMarkers).toBeGreaterThanOrEqual(2)
-  })
-})
-
-describe('composeFlowPath — round-trip with explicit and implicit edge ids', () => {
-  it('resolves a flow that references both explicit-id and auto-derived-id edges', () => {
-    const mixedEdges: XyEdge[] = [
-      // Explicit id (matches schema's `Edge.id` field).
-      { id: 'first', source: 'a', target: 'b', type: 'labeled' },
-      // Auto-derived id (mirrors `effectiveEdgeId(edge)` → `${from}->${to}`).
-      { id: 'b->c', source: 'b', target: 'c', type: 'labeled' },
-    ]
-    const d = composeFlowPath({
-      flow: flow('f', ['first', 'b->c']),
-      xyNodes: nodes,
-      xyEdges: mixedEdges,
-    })
-    expect(d).not.toBeNull()
-    const mCount = (d?.match(/M/g) ?? []).length
-    expect(mCount).toBe(1)
+  it('identical inputs produce byte-identical outputs', () => {
+    const inputs = ['M0 0L10 0', 'M10 0L20 0', 'M20 0L30 0']
+    expect(composeFlowPath(inputs)).toBe(composeFlowPath(inputs))
   })
 })
