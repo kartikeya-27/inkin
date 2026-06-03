@@ -7,8 +7,13 @@ import type { DiagramInput } from '@inkin/core'
  *   - sublabels (monospace second line)
  *   - terminal-shape leaf nodes
  *   - dagre auto-layout across cluster boundaries
- *
- * Flow animation is part of 0.5.0 and is intentionally not used here.
+ *   - flow animation (0.5.0) — two flows staggered to show parallel
+ *     data movement: a synchronous request path through
+ *     `browser → api → web → db`, and an async queue drain via
+ *     `worker → db`. The queue-drain flow starts at half the loop's
+ *     phase (3.25 s = duration / 2) so the two tokens are visually
+ *     out of phase, reinforcing the "parallel and independent"
+ *     reading without overlapping in time.
  */
 export const architecture: DiagramInput = {
   schemaVersion: 1,
@@ -33,5 +38,15 @@ export const architecture: DiagramInput = {
     { id: 'svc-cache', from: 'web', to: 'cache', style: 'dashed' },
     { id: 'wkr-db', from: 'worker', to: 'db', label: 'consume queue' },
     { from: 'browser', to: 'cdn' },
+  ],
+  flows: [
+    // Synchronous request path: browser hits API, API forwards to web,
+    // web reads/writes the DB. The token traces all three edges as one
+    // continuous offset-path.
+    { id: 'request', edges: ['req-in', 'req-svc', 'svc-db'], duration: 6500 },
+    // Background worker draining a queue against the same DB. One edge,
+    // same duration, staggered by half the loop so it's never visually
+    // overlaid on the request token.
+    { id: 'queue-drain', edges: ['wkr-db'], duration: 6500, delay: 3250 },
   ],
 }
