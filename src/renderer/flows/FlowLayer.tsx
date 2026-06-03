@@ -72,6 +72,18 @@ export function FlowLayer({ flows }: FlowLayerProps) {
 
   if (flows === undefined || flows.length === 0) return null
 
+  // Transitional-state guard. When xyflow's store hasn't yet populated
+  // its nodes/edges (the first one or two renders after mount under the
+  // controlled-state path used by `useFlowSync`), every `composeFlowPath`
+  // call would resolve to `null` and we'd emit a spurious "could not be
+  // resolved" warning per flow — even though the diagram is fine and the
+  // next render will succeed. `superRefine` guarantees that a non-empty
+  // `flows` array always references resolvable edges in the parsed
+  // diagram, so an empty xyflow store is unambiguously transitional.
+  // Render nothing this tick; the next render (when xyflow's store
+  // commits) will produce the SVG.
+  if (xyEdges.length === 0 || xyNodes.length === 0) return null
+
   return (
     <svg
       className={styles.root}

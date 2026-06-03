@@ -10,8 +10,10 @@ import {
   type OnNodesChange,
   ReactFlow,
 } from '@xyflow/react'
+import type { Flow } from '../schema/types'
 import { clusterNodeTypes } from './clusters'
 import { edgeTypes } from './edges'
+import { FlowLayer } from './flows'
 import { nodeTypes as rendererNodeTypes } from './nodes'
 
 /**
@@ -75,6 +77,13 @@ export interface GraphRendererProps {
    * identical.
    */
   readonly editable?: boolean
+  /**
+   * Flow definitions from the parsed diagram (0.5.0). When present and
+   * non-empty, `<FlowLayer>` mounts as the last child of `<ReactFlow>` and
+   * renders one animated token per flow. Undefined / empty → no overlay.
+   * Diagrams without `flows` see zero behavior change vs 0.4.x.
+   */
+  readonly flows?: readonly Flow[] | undefined
   /** From `useFlowSync` — forwarded to `<ReactFlow onNodesChange>`. */
   readonly onNodesChange?: OnNodesChange
   /** From `useFlowSync` — forwarded to `<ReactFlow onEdgesChange>`. */
@@ -109,6 +118,7 @@ export function GraphRenderer({
   showMinimap,
   showControls,
   editable = false,
+  flows,
   onNodesChange,
   onEdgesChange,
   onConnect,
@@ -146,6 +156,16 @@ export function GraphRenderer({
       <Background />
       {showControls && <Controls showInteractive={false} />}
       {showMinimap && <MiniMap />}
+      {/*
+        `<FlowLayer>` mounts as the last child of `<ReactFlow>` so it sits
+        inside `<ReactFlowProvider>`'s store and its `useNodes()` /
+        `useEdges()` / `useViewport()` hooks resolve. It renders an
+        absolutely-positioned SVG overlay with `pointer-events: none` so
+        clicks fall through to nodes / edges / the canvas pane underneath.
+        Returns null when `flows` is undefined / empty, so 0.4.x consumers
+        see zero behavior change.
+      */}
+      <FlowLayer flows={flows} />
     </ReactFlow>
   )
 }

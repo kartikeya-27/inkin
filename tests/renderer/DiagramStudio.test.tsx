@@ -214,3 +214,68 @@ describe('<DiagramStudio> — 0.4.0 inspector + palette chrome', () => {
     warn.mockRestore()
   })
 })
+
+// --- 0.5.0: flow-animation overlay --------------------------------------------
+
+/**
+ * `<DiagramStudio>` is the integration point for `<FlowLayer>`: when the
+ * parsed diagram carries a `flows` field, the layer must mount inside
+ * `<ReactFlow>` (so its hooks resolve) and render one `<circle>` per flow.
+ * When no `flows` field exists (the 0.4.x shape) the layer must NOT mount —
+ * the byte-for-byte backwards-compat gate.
+ *
+ * Per-flow visual behavior (color, custom properties, animation rule) is
+ * already covered by `tests/renderer/flows/FlowLayer.test.tsx`. The tests
+ * below focus on the seam — does the wiring through `DiagramStudio` →
+ * `DiagramStudioInner` → `GraphRenderer` → `FlowLayer` carry the
+ * `parsedDiagram.flows` field through correctly.
+ */
+describe('<DiagramStudio> — 0.5.0 flow overlay', () => {
+  const diagramWithFlows: Diagram = {
+    schemaVersion: 1,
+    nodes: [
+      { id: 'a', label: 'Start', shape: 'rect' },
+      { id: 'b', label: 'End', shape: 'terminal' },
+    ],
+    edges: [{ from: 'a', to: 'b', label: 'go', style: 'solid' }],
+    flows: [{ id: 'pulse', edges: ['a->b'], duration: 7000, delay: 0 }],
+  }
+
+  it('mounts <FlowLayer> when the diagram carries a non-empty flows field', () => {
+    const { container } = render(<DiagramStudio value={diagramWithFlows} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).not.toBeNull()
+    expect(container.querySelectorAll('circle[data-testid^="inkin-flow-token-"]')).toHaveLength(1)
+  })
+
+  it('renders one circle per flow under a multi-flow diagram', () => {
+    const multi: Diagram = {
+      ...diagramWithFlows,
+      flows: [
+        { id: 'pulse-a', edges: ['a->b'], duration: 7000, delay: 0 },
+        { id: 'pulse-b', edges: ['a->b'], duration: 5000, delay: 1000 },
+      ],
+    }
+    const { container } = render(<DiagramStudio value={multi} />)
+    expect(container.querySelectorAll('circle[data-testid^="inkin-flow-token-"]')).toHaveLength(2)
+  })
+
+  it('mounts no <FlowLayer> when the diagram has no flows field (0.4.x parity)', () => {
+    // `validDiagram` from the file scope above has no `flows` — that's the
+    // 0.4.x shape every existing consumer sends today.
+    const { container } = render(<DiagramStudio value={validDiagram} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).toBeNull()
+  })
+
+  it('mounts no <FlowLayer> when flows is an empty array', () => {
+    const empty: Diagram = { ...diagramWithFlows, flows: [] }
+    const { container } = render(<DiagramStudio value={empty} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).toBeNull()
+  })
+
+  it('mounts <FlowLayer> in editable mode too — flows are independent of editing', () => {
+    const onChange = vi.fn()
+    const { container } = render(<DiagramStudio value={diagramWithFlows} onChange={onChange} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).not.toBeNull()
+    expect(container.querySelectorAll('circle[data-testid^="inkin-flow-token-"]')).toHaveLength(1)
+  })
+})
