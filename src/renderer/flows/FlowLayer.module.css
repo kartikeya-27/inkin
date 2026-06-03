@@ -81,3 +81,20 @@
     offset-distance: 100%;
   }
 }
+
+/* Reduced-motion gate. Users who opt into `prefers-reduced-motion: reduce`
+ * (OS-level accessibility setting on macOS, Windows, iOS, Android, KDE,
+ * GNOME) see the token as a static dot at the path start rather than a
+ * continuous loop. The `.flowToken` rule above already declares
+ * `offset-distance: 0%` as the resting state, so killing the animation
+ * here leaves the token pinned at the start of its `offset-path` with
+ * its color + drop-shadow intact — visible, in position, but motionless.
+ * Per the master-plan spec ("static dot at the start of the path").
+ *
+ * Convention matches `InspectorPanel.module.css` / `Palette.module.css`
+ * which gate their slide-in transitions the same way. */
+@media (prefers-reduced-motion: reduce) {
+  .flowToken {
+    animation: none;
+  }
+}
