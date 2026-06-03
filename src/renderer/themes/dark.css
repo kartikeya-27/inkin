@@ -54,4 +54,10 @@
   --inkin-cluster-radius: 8px;
   --inkin-border-width: 1px;
   --inkin-border-width-strong: 2px;
+
+  /* Flow tokens (0.5.0) — radius of the animated <circle> tokens that
+   * traverse a flow's composed offset-path. Consumers can rebrand to
+   * fatter or thinner tokens via the same `:root[data-inkin-theme="dark"]`
+   * override mechanism every other token uses. */
+  --inkin-flow-token-radius: 6px;
 }

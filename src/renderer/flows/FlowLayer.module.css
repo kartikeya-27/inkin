@@ -42,6 +42,16 @@
    * them so each token gets independent timing from the same shared
    * `flowTraverse` keyframes — no per-instance keyframe regeneration. */
   offset-path: var(--inkin-flow-path);
+  /* SVG <circle> `r` is also a CSS property in modern browsers — the
+   * fallback `r="6"` attribute on the element keeps things sane in
+   * any edge-case environment where the CSS `r` property isn't
+   * honored (none of our supported browsers, but cheap insurance).
+   * Theme tokens drive the runtime value: consumers can rebrand the
+   * token size via `:root[data-inkin-theme="dark"] {
+   * --inkin-flow-token-radius: 8px; }` the same way they rebrand
+   * `--inkin-node-radius`. The `6px` fallback after the variable name
+   * is a defense in case a theme file forgets to set the token. */
+  r: var(--inkin-flow-token-radius, 6px);
   /* Phase 3: continuous loop along the composed path. The `linear`
    * timing function matches every observability tool's data-flow
    * convention (data movement shouldn't accelerate or decelerate —
