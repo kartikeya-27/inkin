@@ -37,6 +37,7 @@ playwright/.cache
 
 # Local scratch
 .scratch
+tmp/
 .tmp
 
 # Personal planning / reference files (local-only, not part of the published library)

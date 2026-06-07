@@ -214,3 +214,35 @@ describe('<DiagramStudio> — 0.4.0 inspector + palette chrome', () => {
     warn.mockRestore()
   })
 })
+
+// --- 0.5.0: flow-animation overlay --------------------------------------------
+
+/**
+ * Phase 10 architecture: `<FlowLayer>` reads xyflow's already-rendered
+ * edge `<path>` `d` attributes from the DOM. Under jsdom, xyflow does
+ * NOT render any `<path>` elements, so `<FlowLayer>` never produces
+ * `<circle>` tokens regardless of whether `value.flows` is set. The
+ * "tokens appear when flows are set" / "one token per flow" assertions
+ * live in `tests/e2e/flows.spec.ts` (Phase 9) where real browser
+ * engines give us real edge geometry.
+ *
+ * What this block still pins under jsdom: backwards-compat parity —
+ * a `value` without `flows` and a `value` with empty `flows` both
+ * mount no FlowLayer SVG, exactly the same way 0.4.x consumers see
+ * after upgrading to 0.5.0.
+ */
+describe('<DiagramStudio> — 0.5.0 flow overlay (jsdom-honest assertions)', () => {
+  it('mounts no <FlowLayer> when the diagram has no flows field (0.4.x parity)', () => {
+    const { container } = render(<DiagramStudio value={validDiagram} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).toBeNull()
+  })
+
+  it('mounts no <FlowLayer> when flows is an empty array', () => {
+    const empty: Diagram = {
+      ...validDiagram,
+      flows: [],
+    }
+    const { container } = render(<DiagramStudio value={empty} />)
+    expect(container.querySelector('[data-testid="inkin-flow-layer"]')).toBeNull()
+  })
+})

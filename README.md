@@ -2,13 +2,14 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.4.0` — the **editor-chrome release**. `<DiagramStudio>` in editable mode auto-mounts an **Inspector** panel and a **Palette** toolbar (flex siblings of the canvas, not overlays). Clusters are first-class: selectable, draggable from a header strip, deletable, inline-renamable. Schema gained optional `Cluster.position` + `Cluster.size`. Omit `onChange` for byte-for-byte 0.2.0 read-only behavior. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.5.0` — the **flow-animation release**. Declare a `flows?: Flow[]` field on your `Diagram` and one animated `<circle>` per flow traverses its composed edge path via native CSS `offset-path` keyframes. No animation library. Pixel-perfect alignment with xyflow's rendered edges. Honors `prefers-reduced-motion: reduce` with a static-dot fallback. Editor chrome from 0.4.x (Inspector + Palette + cross-cluster drag) is unchanged. Schema, editing primitives, and `<DiagramStudio>` props all unchanged — purely additive overlay. See [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.4.0)
+## What this gives you (today, at 0.5.0)
 
 - A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
 - **In-place editing when you supply `onChange`** — drag to move, drag handles to connect, Delete or Backspace to remove with cascade, double-click any label to edit it inline. Arrow-key nudges and Esc-cancel come for free. Same component, two visible UIs.
-- **Editor chrome auto-mounts in editable mode** (new in 0.4.0) — a contextual **Inspector** (label / sublabel / shape / cluster) and a **Palette** toolbar (Add Node / Add Cluster). Opt out per-panel via `inspector="off"` / `palette="off"`. Drag a node into a cluster to reassign it.
+- **Editor chrome auto-mounts in editable mode** (since 0.4.0) — a contextual **Inspector** (label / sublabel / shape / cluster) and a **Palette** toolbar (Add Node / Add Cluster). Opt out per-panel via `inspector="off"` / `palette="off"`. Drag a node into a cluster to reassign it.
+- **Animated data-flow tokens** (new in 0.5.0) — populate `diagram.flows` with ordered edge ids and one `<circle>` per flow loops along the composed path. Per-flow `duration` / `delay` / `color`. No new prop on `<DiagramStudio>`. Honors `prefers-reduced-motion: reduce`. See the [Flow animation](#flow-animation) section.
 - A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
 - Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
@@ -182,6 +183,106 @@ Sub-480 px viewports auto-collapse to a stacked column so neither panel eats the
 
 Every editing event flows through a pure schema reducer and is re-validated before `onChange` fires — invalid diagrams can never escape from the editor. Persistence is whatever your `onChange` does: a `useState`, a `localStorage.setItem`, a `fetch` to your backend — see the [examples app](examples/src/App.tsx) for a working playground.
 
+## Flow animation
+
+New in 0.5.0. Declare a `flows?: Flow[]` field on your `Diagram` and one
+animated `<circle>` per flow traces its composed path through the
+listed edges. Pure CSS `offset-path` + `offset-distance` keyframes — no
+animation library, no JavaScript animation loop. The feature is fully
+data-driven; no new `<DiagramStudio>` prop.
+
+```tsx
+import { DiagramStudio } from '@inkin/core'
+import '@inkin/core/styles.css'
+
+export function ArchitectureMap() {
+  return (
+    <div style={{ width: '100%', height: 600 }}>
+      <DiagramStudio
+        value={{
+          schemaVersion: 1,
+          clusters: [
+            { id: 'edge', label: 'edge' },
+            { id: 'app', label: 'application' },
+            { id: 'data', label: 'data' },
+          ],
+          nodes: [
+            { id: 'browser', label: 'Browser', cluster: 'edge' },
+            { id: 'api', label: 'API Gateway', cluster: 'app' },
+            { id: 'web', label: 'Web Service', cluster: 'app' },
+            { id: 'worker', label: 'Worker', cluster: 'app' },
+            { id: 'db', label: 'Database', cluster: 'data', shape: 'terminal' },
+          ],
+          edges: [
+            { id: 'req-in', from: 'browser', to: 'api', label: 'HTTPS' },
+            { id: 'req-svc', from: 'api', to: 'web', style: 'dashed' },
+            { id: 'svc-db', from: 'web', to: 'db' },
+            { id: 'wkr-db', from: 'worker', to: 'db', label: 'consume queue' },
+          ],
+          flows: [
+            // Sync request path: browser → API → web → db. 6.5 s loop.
+            { id: 'request', edges: ['req-in', 'req-svc', 'svc-db'], duration: 6500 },
+            // Async queue drain — staggered half a loop so the two
+            // tokens are never visually overlaid on the same frame.
+            { id: 'queue-drain', edges: ['wkr-db'], duration: 6500, delay: 3250 },
+          ],
+        }}
+      />
+    </div>
+  )
+}
+```
+
+Two blue tokens. The `request` token traces the three-edge sync path
+continuously; the `queue-drain` token starts at the worker's right
+handle for the first 3.25 seconds (its `delay`), then begins its loop
+half a phase out of step with the request token.
+
+| `Flow` field | Type | Default | Notes |
+|---|---|---|---|
+| `id` | `string` | _required_ | Schema-unique identifier. |
+| `edges` | `string[]` (length ≥ 1) | _required_ | Ordered edge ids the token traverses. Each id must resolve to an `Edge` — either the explicit `Edge.id` field or the auto-derived `${from}->${to}` form. Adjacent edges (target of `[i]` = source of `[i+1]`) trace as one smooth continuous path; non-adjacent sequences render a straight connector segment between disjoint endpoints. |
+| `duration` | `number` (ms) | `7000` | One full loop time. |
+| `delay` | `number` (ms) | `0` | Offset before the first iteration begins — handy for staggering parallel flows. |
+| `color` | `string` | `var(--inkin-accent-primary)` | Any CSS color (hex, `rgb()`, `hsl()`) or CSS custom property expression (`var(...)`). Drives both the token's `fill` AND its drop-shadow glow via `currentColor`. |
+| `label` | `string` | — | Schema-only in 0.5.0; reserved for a future flow-editor surface that consumes it. |
+
+**Cascade behavior** — when a user deletes an edge that one of the
+flows references, the `pruneFlows` reducer cascade (shipped in 0.3.0)
+strips the deleted edge id from the affected flow's `edges` array
+before `onChange` fires. A flow whose `edges` array becomes empty is
+removed entirely. 0.5.0 is the first release where consumers can see
+this happen live: the token shortens its path, then disappears when
+the last referenced edge goes away.
+
+**Theming** — the token radius is themeable via the
+`--inkin-flow-token-radius` CSS custom property (default `6px`,
+declared in both `dark.css` and `light.css`). Override the same way
+you'd override any other theme token:
+
+```css
+[data-inkin-theme='dark'] {
+  --inkin-flow-token-radius: 9px;
+}
+```
+
+The CSS `r` property is supported in Chromium 86+, Firefox 100+, and
+Safari 16+ — well within the inkin browser matrix.
+
+**Reduced motion** — `@media (prefers-reduced-motion: reduce) {
+.flowToken { animation: none; } }` is baked into the consolidated CSS.
+Users opting in at the OS level see each token as a static dot at the
+start of its path with color and drop-shadow glow intact — visible
+and in position, but motionless. No code change needed.
+
+**What's not in 0.5.0** — there is no Inspector field for `Flow.edges`,
+no Palette "add flow" tool, no patch variants for adding / editing /
+removing flows. Authoring is declarative-only — mutate `value.flows`
+in your own state and pass the new value down. The full flow editor
+lands in `1.1.0` after the `1.0.0` schema freeze; the master plan
+reserves the post-stable enhancement queue for this kind of additive
+feature so the patch surface ships at most once.
+
 ## Schema-only quickstart (framework-agnostic)
 
 The schema kernel from `0.1.0` is still available at the same subpath, unchanged:
@@ -254,7 +355,7 @@ When `<DiagramStudio>` receives an invalid `value`, it renders the same field-pa
 | `nodes` | `Node[]` | `{ id, label, sublabel?, position?, cluster?, shape }` |
 | `edges` | `Edge[]` | `{ id?, from, to, label?, style }` |
 | `clusters?` | `Cluster[]` | `{ id, label, parent? }` (nested rendering: `1.2.0`) |
-| `flows?` | `Flow[]` | `{ id, label?, edges, duration, delay, color? }` (rendering: `0.5.0`) |
+| `flows?` | `Flow[]` | `{ id, label?, edges, duration, delay, color? }` — animated tokens since `0.5.0`; see [Flow animation](#flow-animation) |
 
 `shape` is `'rect' \| 'terminal'`; `style` is `'solid' \| 'dashed'`. Both have sensible defaults.
 
@@ -289,13 +390,13 @@ The theme attribute lives on the `<DiagramStudio>` wrapper, so two instances on 
 |---|---|---|---|
 | `0.1.0` | Schema kernel (AI-ready) | `@inkin/core/schema` subpath | ✅ shipped |
 | `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
-| **`0.3.0`** | Core editing (drag, connect, delete, inline label) — you are here | `onChange` prop; `DiagramInput` type; editing layer | ✅ shipped |
-| `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | planned |
-| `0.5.0` | Flow animation (CSS `offset-path` tokens) | root entry grows | planned |
+| `0.3.0` | Core editing (drag, connect, delete, inline label) | `onChange` prop; `DiagramInput` type; editing layer | ✅ shipped |
+| `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | ✅ shipped |
+| **`0.5.0`** | Flow animation (CSS `offset-path` tokens) — you are here | `<FlowLayer>` overlay, `--inkin-flow-token-radius` theme token | ✅ shipped |
 | `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |
 | `1.0.0` | Stable — schema and root API frozen, semver guarantee begins | polish only | planned |
 
-Post-stable: undo/redo, copy/paste, PNG export, flow-editor UI, `layout="elk"`, custom node/edge type registry.
+Post-stable: undo/redo, copy/paste, PNG export, **flow-editor UI** (Inspector / Palette surface for adding, editing, and removing flows), `layout="elk"`, custom node/edge type registry.
 
 ## Security
 

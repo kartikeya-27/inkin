@@ -1,7 +1,7 @@
 {
   "name": "@inkin/core",
-  "version": "0.4.1",
-  "description": "Editable React diagrams from a typed schema. v0.4.0 adds the editor chrome on top of 0.3.0's editing primitives: a contextual Inspector panel (label / sublabel / shape / cluster), a Palette toolbar (Add Node / Add Cluster), shared form primitives, and cross-cluster drag-and-drop reassignment. Auto-mount when `onChange` is provided; opt out per-panel via `inspector=\"off\"` / `palette=\"off\"`. The framework-agnostic schema kernel remains at the @inkin/core/schema subpath.",
+  "version": "0.5.0",
+  "description": "Editable React diagrams from a typed schema. v0.5.0 adds animated data-flow tokens on top of 0.4.x's editor chrome: declare a `flows` field on the Diagram and one `<circle>` per flow traverses its composed path using native CSS `offset-path` keyframes — no animation library, honors `prefers-reduced-motion`. Editing primitives, Inspector/Palette chrome, and the framework-agnostic schema kernel at @inkin/core/schema are unchanged.",
   "license": "MIT",
   "author": "kartikeya27",
   "repository": {

@@ -44,6 +44,8 @@ export type InkinThemeTokenName =
   | '--inkin-cluster-radius'
   | '--inkin-border-width'
   | '--inkin-border-width-strong'
+  // Flow tokens (0.5.0)
+  | '--inkin-flow-token-radius'
 
 /** The two built-in theme names supported by the `theme` prop in `0.2.0`. */
 export type InkinThemeName = 'dark' | 'light'

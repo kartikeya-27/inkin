@@ -205,6 +205,7 @@ function DiagramStudioInner({
         showMinimap={minimap}
         showControls={controls}
         editable={sync.isEditable}
+        flows={sync.parsedDiagram?.flows}
         onNodesChange={sync.onNodesChange}
         onEdgesChange={sync.onEdgesChange}
         onConnect={sync.onConnect}
