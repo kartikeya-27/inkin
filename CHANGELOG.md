@@ -12,6 +12,151 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
+## [0.5.0] — 2026-06-08
+
+The **flow-animation release**. The `flows?: Flow[]` field that has been
+on the `Diagram` schema since 0.1.0 now renders: one animated `<circle>`
+token per flow traces its composed path through the consumer-defined
+edge sequence. No animation library, no JavaScript animation loop — pure
+CSS `offset-path` + `offset-distance` keyframes, honors
+`prefers-reduced-motion: reduce` with a static-dot fallback.
+
+The feature is fully data-driven — there is no new `<DiagramStudio>`
+prop. Consumers populate `value.flows` and the tokens appear. 0.4.x
+consumers see zero behavior change unless their diagrams already carry
+a `flows` field (no existing consumer does — the field was renderer-
+inert until now).
+
+### Added
+
+- **`<FlowLayer>` SVG overlay** mounts as the last child of `<ReactFlow>`
+  inside `GraphRenderer` when `diagram.flows` is non-empty. Renders one
+  animated `<circle>` per flow, positioned along the composed
+  `offset-path`. Mirrors xyflow's viewport transform so pan / zoom move
+  the tokens in lockstep with the underlying edges. Reads xyflow's
+  already-rendered edge `d` attributes from the DOM via a
+  `useLayoutEffect` — pixel-perfect alignment with the visible edges
+  regardless of cluster padding, node handle offset, or measured-vs-
+  rendered-dimension differences.
+- **Per-flow timing** via inline CSS custom properties on each token:
+  `--inkin-flow-duration` from `flow.duration` (default 7000 ms),
+  `--inkin-flow-delay` from `flow.delay` (default 0 ms). Both feed the
+  shared `@keyframes flowTraverse` declaration so multiple flows can
+  stagger their starts and run at different speeds while sharing one
+  keyframe block.
+- **Per-flow color** via `flow.color` (any CSS color or `var(...)`
+  expression). Falls back to `var(--inkin-accent-primary)` when unset,
+  so unconfigured flows match the theme palette automatically. Color
+  drives both the circle `fill` AND the drop-shadow glow via
+  `currentColor` — change one, both update.
+- **`--inkin-flow-token-radius` theme token** (default `6px`) wired
+  through `.flowToken` via the CSS `r` property. Consumers can rebrand
+  the token size via the same `:root[data-inkin-theme="dark"|"light"]`
+  mechanism every other theme token uses. Added to
+  `src/renderer/themes/tokens.ts` for the typed token contract.
+- **`prefers-reduced-motion: reduce` gate** at
+  `@media (prefers-reduced-motion: reduce) { .flowToken { animation:
+  none; } }`. Tokens become static dots at the start of their composed
+  path — visible, in position, but motionless. Per the master plan's
+  a11y spec.
+- **Architecture sample gains two flows** (`request` traversing
+  `req-in → req-svc → svc-db`, `queue-drain` traversing `wkr-db` with a
+  3.25 s delay) — `pnpm examples` shows the feature live in a clustered
+  three-tier diagram.
+- **Editable playground gains a `pipeline` flow** tracing `refine →
+  release`. Delete the `release` edge to watch the 0.3.0 `pruneFlows`
+  cascade strip it from the flow's edges array; delete `refine` too
+  and the flow gets removed entirely. Demonstrates how flows respond
+  to editing without inventing flow-editing UI.
+
+### Changed
+
+- **`composeFlowPath` is now a pure string-concatenation helper.**
+  Originally the helper recomputed edge geometry via
+  `getSmoothStepPath` from node positions. Phase 10's visual review
+  surfaced 6-12 px misalignment from xyflow's internal handle-bounds
+  math (handle width, cluster content padding, measured-vs-rendered-
+  height differences) that the helper couldn't honestly replicate. The
+  helper now takes pre-extracted edge `d` strings (the `<FlowLayer>`
+  reads them from xyflow's rendered DOM) and only owns the M-stripping
+  needed to make N segments trace as one continuous `offset-path`. The
+  helper is no longer exposed from any public entry; the `<FlowLayer>`
+  is the only caller.
+- **Examples app header** bumped to "0.5.0 flow-animation release";
+  sample dropdown labels updated to signpost where flows appear
+  ("Architecture — clustered + animated flows", "Editable playground —
+  drag, edit, delete, chrome + flow").
+
+### Verified
+
+- **End-to-end animation gate** (Playwright, all three engines —
+  chromium, firefox, webkit): each token's computed `animation-name`
+  resolves to a hashed `flowTraverse` (regex suffix match — CSS
+  Modules hashes `@keyframes` identifiers); `Animation.currentTime`
+  advances over a 1 s observation window within ±200 ms of clock-time
+  (the WebAnimations API, awaiting `Animation.ready` first to sync the
+  headless engine's document timeline); per-flow `animation-duration` /
+  `animation-delay` survive intact through the inline-style → CSS
+  longhand pipeline.
+- **Reduced-motion gate** (Playwright, all three engines, with
+  `page.emulateMedia({ reducedMotion: 'reduce' })`): `matchMedia`
+  confirms emulation; `animation-name` resolves to `'none'`; the
+  token's bounding box is stable across 500 ms (≤ 2 px movement). Pin
+  intact.
+- **Backwards compatibility** (vitest + Playwright): a diagram
+  without `flows` (every existing 0.4.x sample) renders identically
+  to 0.4.x. A diagram with `flows: []` (empty array) renders no
+  overlay either.
+- **Bundle budget** (`pnpm size`): inkin-only code 13.07 kB brotli
+  against the 25 kB ceiling (was 12.06 kB at 0.4.1; +1.01 kB for
+  `<FlowLayer>` + `composeFlowPath` + the `useState` / useLayoutEffect`
+  machinery). Consolidated CSS 4.86 kB against the 30 kB ceiling (was
+  4.71 kB at 0.4.1; +0.15 kB for the `@keyframes flowTraverse` block,
+  the reduced-motion media query, and the new theme token). React
+  surface ESM 133.11 kB / 200 kB ceiling. Schema surface unchanged.
+- **No new runtime dependencies** (`pnpm install --frozen-lockfile`
+  green). Same peer-dep contract: React `>=18`, react-dom `>=18`.
+- **Vitest** — 373/373 green across 32 test files. The Phase 10
+  refactor moved 24 jsdom assertions that depended on xyflow rendering
+  `<path>` elements (it doesn't in jsdom — verified
+  `container.querySelectorAll('path').length === 0` under
+  `@testing-library/react` + `@xyflow/react`) into the Playwright
+  suite, where real browser engines render them.
+- **Playwright** — 81/81 specs green across chromium + firefox +
+  webkit on Linux CI. Six new specs in `tests/e2e/flows.spec.ts` cover
+  the animation pipeline end-to-end + the reduced-motion gate.
+
+### Schema
+
+- `Flow.edges`'s `superRefine` validator (shipped in 0.1.0) is the
+  authoritative gate against bad references — a flow that names an
+  edge id which doesn't resolve fails `parse()` with a field-path-
+  precise error (`diagram.flows[0].edges[2] — references unknown edge
+  id`) that AI agents can self-correct from in one round. No new
+  validation rules in 0.5.0.
+- `pruneFlows` / `withPrunedFlows` reducer cascade (shipped in 0.3.0)
+  is the authoritative gate for editing — `DeleteEdge` / `DeleteNode`
+  patches strip the deleted ids from every affected flow's `edges`
+  array before `safeParse` re-validates, and a flow whose `edges`
+  becomes empty is removed entirely (the schema requires
+  `Flow.edges.min(1)`). 0.5.0 is the first release where consumers can
+  see this happen live.
+
+### Deferred
+
+- **Flow editing UI** is reserved for `1.1.0` per the master plan
+  (post-1.0.0 schema freeze). No Inspector field for `Flow.edges`, no
+  Palette tool for "add flow", no `AddFlow` / `DeleteFlow` /
+  `SetFlowEdges` patch variants. Authoring flows is declarative-only:
+  mutate `value.flows` in your own state and pass it down to
+  `<DiagramStudio value>`. The cascade-prune from 0.3.0 is the only
+  "editable interaction" with flows that ships.
+- **Per-token pause / resume control** is not on the roadmap. Reduced
+  motion is the only kill switch.
+- **Multiple tokens per flow** is not on the roadmap. To show
+  "three packets in flight" the consumer declares three flows with
+  staggered delays.
+
 ## [0.4.1] — 2026-06-02
 
 A focused patch release that closes the last visible polish gap in
