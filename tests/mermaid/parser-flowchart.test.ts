@@ -4,6 +4,7 @@ import type {
   FlowchartAst,
   FlowchartStatement,
   ParseFailure,
+  SubgraphStatement,
   VertexStatement,
 } from '../../src/mermaid/parser/ast'
 import { parseFlowchart } from '../../src/mermaid/parser/flowchart'
@@ -49,6 +50,10 @@ function vertices(stmts: readonly FlowchartStatement[]): VertexStatement[] {
 
 function edges(stmts: readonly FlowchartStatement[]): EdgeStatement[] {
   return stmts.filter((s): s is EdgeStatement => s.kind === 'edge')
+}
+
+function subgraphs(stmts: readonly FlowchartStatement[]): SubgraphStatement[] {
+  return stmts.filter((s): s is SubgraphStatement => s.kind === 'subgraph')
 }
 
 describe('flowchart parser — header', () => {
@@ -302,13 +307,6 @@ describe('flowchart parser — unsupported features (per Phase 1 spec)', () => {
     )
   })
 
-  it('returns an unsupported issue for subgraphs (Phase 4 placeholder)', () => {
-    const failure = parseExpectingFailure('flowchart\nsubgraph X\nA --> B\nend')
-    expect(
-      failure.issues.some((i) => i.kind === 'unsupported' && /subgraph/i.test(i.message)),
-    ).toBe(true)
-  })
-
   it('collects all issues from a single parse (multi-error reporting)', () => {
     const failure = parseExpectingFailure(`flowchart
 style A fill:#f00
@@ -351,5 +349,101 @@ web --> db[(Database)]`
     const input = 'flowchart\nA --> B --> C --> D --> E'
     const ast = parse(input)
     expect(edges(ast.statements)).toHaveLength(4)
+  })
+})
+
+describe('flowchart parser — subgraphs (Phase 4)', () => {
+  it('parses a simple subgraph with id-only header', () => {
+    const ast = parse('flowchart\nsubgraph G1\nA --> B\nend')
+    const sgs = subgraphs(ast.statements)
+    expect(sgs).toHaveLength(1)
+    expect(sgs[0]?.id).toBe('G1')
+    expect(sgs[0]?.label).toBeUndefined()
+    expect(vertices(sgs[0]!.statements).map((v) => v.id)).toEqual(['A', 'B'])
+    expect(edges(sgs[0]!.statements)).toHaveLength(1)
+  })
+
+  it('parses a subgraph with `subgraph X[label]` bracketed title', () => {
+    const ast = parse('flowchart\nsubgraph G1[Group One]\nA --> B\nend')
+    const sgs = subgraphs(ast.statements)
+    expect(sgs).toHaveLength(1)
+    expect(sgs[0]).toMatchObject({ id: 'G1', label: 'Group One' })
+  })
+
+  it('parses a subgraph with a quoted-string header (id == label)', () => {
+    const ast = parse('flowchart\nsubgraph "Group with spaces"\nA\nend')
+    const sgs = subgraphs(ast.statements)
+    expect(sgs).toHaveLength(1)
+    expect(sgs[0]).toMatchObject({ id: 'Group with spaces', label: 'Group with spaces' })
+  })
+
+  it('parses an empty subgraph body', () => {
+    const ast = parse('flowchart\nsubgraph G1\nend')
+    const sgs = subgraphs(ast.statements)
+    expect(sgs[0]?.statements).toEqual([])
+  })
+
+  it('mixes top-level statements with subgraph blocks', () => {
+    const ast = parse(`flowchart
+A --> B
+subgraph cluster1
+C --> D
+end
+E --> F`)
+    expect(subgraphs(ast.statements)).toHaveLength(1)
+    expect(edges(ast.statements.filter((s) => s.kind !== 'subgraph'))).toHaveLength(2)
+    expect(edges(subgraphs(ast.statements)[0]!.statements)).toHaveLength(1)
+  })
+
+  it('flattens nested subgraphs with one unsupported warn per nesting level', () => {
+    const result = parseFlowchart(
+      new Tokenizer(`flowchart
+subgraph Outer
+A --> B
+subgraph Inner
+X --> Y
+end
+end`),
+    )
+    // Nested subgraph emits unsupported — collected in issues, parse fails.
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    const nestedWarn = result.issues.find(
+      (i) => i.kind === 'unsupported' && /nested subgraph/i.test(i.message),
+    )
+    expect(nestedWarn).toBeDefined()
+  })
+
+  it('records an unsupported issue for `direction` inside a subgraph body', () => {
+    const failure = parseExpectingFailure(`flowchart
+subgraph G1
+direction LR
+A --> B
+end`)
+    expect(
+      failure.issues.some(
+        (i) => i.kind === 'unsupported' && /per-subgraph.*direction/i.test(i.message),
+      ),
+    ).toBe(true)
+  })
+
+  it('reports a syntax error when a subgraph is never closed by `end`', () => {
+    const failure = parseExpectingFailure('flowchart\nsubgraph G1\nA --> B')
+    expect(failure.issues.some((i) => i.kind === 'syntax' && /never closed/i.test(i.message))).toBe(
+      true,
+    )
+  })
+
+  it('reports a syntax error for `end` outside a subgraph block', () => {
+    const failure = parseExpectingFailure('flowchart\nA --> B\nend')
+    expect(
+      failure.issues.some((i) => i.kind === 'syntax' && /unexpected.*end/i.test(i.message)),
+    ).toBe(true)
+  })
+
+  it('auto-generates an id when `subgraph` has no name', () => {
+    const ast = parse('flowchart\nsubgraph\nA --> B\nend')
+    const sgs = subgraphs(ast.statements)
+    expect(sgs[0]?.id).toMatch(/^__sg_\d+__$/)
   })
 })

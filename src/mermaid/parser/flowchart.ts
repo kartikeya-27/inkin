@@ -1,14 +1,19 @@
 /**
  * Recursive-descent parser for the Mermaid `flowchart` (and legacy
- * `graph`) grammar. Phase 3 of the 0.6.0 plan.
+ * `graph`) grammar. Phases 3 + 4 of the 0.6.0 plan.
  *
  * Builds a {@link FlowchartAst} from a {@link Tokenizer} positioned at
- * the start of the source. Subgraphs are recognized but currently emit
- * an `unsupported` issue with the position of the `subgraph` keyword —
- * Phase 4 replaces the stub. Out-of-scope statements (`classDef`,
- * `class`, `style`, `linkStyle`, `interpolate`, `click`, `href`,
- * accessibility annotations) emit `unsupported` issues per Phase 1's
- * documented subset.
+ * the start of the source. Subgraphs (Phase 4) are fully parsed
+ * including bracket-labels, quoted-string ids, empty bodies, and
+ * statement-mixing — nested subgraphs are flattened into the
+ * outermost cluster with one `unsupported` warn per nesting level
+ * (consistent with the renderer's existing nested-cluster fallback;
+ * the master plan reserves nested rendering for 1.2.0 / elkjs).
+ * Per-subgraph `direction` overrides are recognized but emit an
+ * `unsupported` issue since inkin's layout is single-direction.
+ * Out-of-scope statements (`classDef`, `class`, `style`, `linkStyle`,
+ * `interpolate`, `click`, `href`, accessibility annotations) emit
+ * `unsupported` issues per Phase 1's documented subset.
  *
  * Edge chaining (`A --> B --> C`) is supported: each link in the chain
  * produces an `EdgeStatement` and each unique vertex form produces a
@@ -31,6 +36,7 @@ import type {
   ParseIssue,
   ParseResult,
   Position,
+  SubgraphStatement,
   VertexShape,
   VertexStatement,
 } from './ast'
@@ -139,6 +145,11 @@ class FlowchartParser {
    * header has been consumed. */
   private headerPosition: Position = { line: 1, column: 1 }
   private direction: FlowchartDirection = 'TB'
+  /** Counter for auto-generating subgraph ids when the source writes
+   * just `subgraph\n ... end` without an explicit name. Mermaid auto-
+   * assigns these too; we use a stable scheme so repeat parses of
+   * the same input produce the same ids. */
+  private subgraphAutoCounter = 1
 
   constructor(tokenizer: Tokenizer) {
     this.t = tokenizer
@@ -249,13 +260,16 @@ class FlowchartParser {
       return []
     }
 
-    // Subgraph placeholder — Phase 4 replaces this.
     if (tok.kind === 'KW_SUBGRAPH') {
-      this.recordUnsupported(
-        "subgraphs (`subgraph` / `end`) aren't supported by the inkin Mermaid bridge yet — Phase 4 of the 0.6.0 implementation. Track via the `SubgraphStatement` AST node.",
-        tok,
-      )
-      this.skipToEndOfStatement()
+      const subgraph = this.parseSubgraph()
+      return subgraph === null ? [] : [subgraph]
+    }
+
+    if (tok.kind === 'KW_END') {
+      // `end` outside any `subgraph` block — syntax error. Advance
+      // past it so the parser doesn't loop on it.
+      this.recordSyntax('Unexpected `end` outside a `subgraph` block', tok)
+      this.t.next()
       return []
     }
 
@@ -505,6 +519,122 @@ class FlowchartParser {
       const k = this.t.peek().kind
       if (k === 'NEWLINE' || k === 'SEMI' || k === 'EOF') return
       this.t.next()
+    }
+  }
+
+  /**
+   * Parse a subgraph block: `subgraph X[label]` ... statements ... `end`.
+   *
+   * Mermaid syntax handled:
+   *
+   *   subgraph X                  → id 'X', no label (display id)
+   *   subgraph X[Some Label]      → id 'X', label 'Some Label'
+   *   subgraph "Some Label"       → id and label both 'Some Label'
+   *   subgraph                    → auto-generated id `__sg_${n}__`
+   *
+   * Body parses recursively via `parseStatement`. Nested subgraphs
+   * flatten — the nested cluster's `statements` are spread into the
+   * outer cluster's `statements` and one `unsupported` issue is
+   * recorded per nesting level (the master plan reserves nested
+   * rendering for 1.2.0 / elkjs). Per-subgraph `direction` overrides
+   * (Mermaid `direction TB` inside a subgraph body) emit `unsupported`
+   * but parsing continues — the override is silently dropped.
+   *
+   * Returns `null` only on a syntax error before any statements are
+   * parsed (e.g. EOF without `end`). All other recovery paths return
+   * a partial subgraph so subsequent valid statements still parse.
+   */
+  private parseSubgraph(): SubgraphStatement | null {
+    const sgTok = this.t.next() // consume KW_SUBGRAPH
+
+    // Optional id and label. Three forms:
+    //   subgraph X                — IDENT id, no label
+    //   subgraph X[label]         — IDENT id, bracket label
+    //   subgraph "label"          — STRING (id and label both equal to string)
+    //   subgraph                  — no id at all; auto-generate
+    let id: string
+    let label: string | undefined
+    const idPeek = this.t.peek()
+    if (idPeek.kind === 'IDENT' || idPeek.kind === 'NUM' || idPeek.kind === 'DIR_VALUE') {
+      id = this.t.next().value
+      // Optional [label] — only the plain `[...]` form, since `subgraph
+      // X(label)` etc. aren't part of the Mermaid grammar.
+      if (this.t.peek().kind === 'LBRACKET') {
+        const openTok = this.t.next() // consume [
+        const r = this.t.readUntilMarker([']'])
+        if (r === null) {
+          this.recordSyntax('Subgraph label opened with `[` was never closed by `]`', openTok)
+        } else {
+          this.t.next() // consume ]
+          if (r.text.length > 0) label = r.text
+        }
+      }
+    } else if (idPeek.kind === 'STRING') {
+      const stringTok = this.t.next()
+      id = stringTok.value
+      label = stringTok.value
+    } else {
+      // No id given — Mermaid allows `subgraph` with auto-generated id.
+      id = `__sg_${this.subgraphAutoCounter++}__`
+    }
+
+    this.expectStatementSeparator()
+
+    const statements: FlowchartStatement[] = []
+    while (true) {
+      this.skipBlanks()
+      const peek = this.t.peek()
+
+      if (peek.kind === 'EOF') {
+        this.recordSyntax(`Subgraph \`${id}\` was never closed by \`end\``, sgTok)
+        break
+      }
+
+      if (peek.kind === 'KW_END') {
+        this.t.next()
+        break
+      }
+
+      // Per-subgraph direction override — Mermaid grammar allows it,
+      // inkin's layout doesn't. Flag as unsupported, skip the line,
+      // continue parsing the rest of the subgraph body.
+      if (peek.kind === 'KW_DIRECTION') {
+        this.recordUnsupported(
+          "Per-subgraph `direction` overrides aren't supported by the inkin Mermaid bridge — inkin uses a single direction set at the diagram level.",
+          peek,
+        )
+        this.skipToEndOfStatement()
+        continue
+      }
+
+      // Nested subgraph — recurse, flatten the children up, warn.
+      if (peek.kind === 'KW_SUBGRAPH') {
+        this.recordUnsupported(
+          "Nested subgraphs aren't supported by the inkin Mermaid bridge — the nested cluster's contents are flattened into the parent (master plan reserves nested rendering for 1.2.0). Children of the inner subgraph become direct children of the outer one.",
+          peek,
+        )
+        const nested = this.parseSubgraph()
+        if (nested !== null) {
+          for (const child of nested.statements) statements.push(child)
+        }
+        continue
+      }
+
+      const parsed = this.parseStatement()
+      if (parsed === null) {
+        // Issue already recorded; advance to avoid infinite loop.
+        if (this.t.peek().kind !== 'EOF') this.t.next()
+      } else {
+        for (const stmt of parsed) statements.push(stmt)
+      }
+    }
+
+    return {
+      kind: 'subgraph',
+      id,
+      ...(label !== undefined && { label }),
+      statements,
+      position: { line: sgTok.line, column: sgTok.column },
     }
   }
 
