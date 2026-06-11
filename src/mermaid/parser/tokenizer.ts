@@ -360,6 +360,28 @@ export class Tokenizer {
       return this.make('COLON', ':', startLine, startCol)
     }
 
+    // Standalone dotted closer (`.->` or `.-`) — Mermaid accepts both
+    // `A -. text -.-> B` and `A -. text .-> B`, the latter using a
+    // short-form closer with no leading dash. We canonicalize to the
+    // long form so the parser sees a single kind regardless of which
+    // syntactic form the consumer wrote.
+    if (c === '.' && this.charAt(1) === '-') {
+      // `.->` short-form arrow closer.
+      if (this.charAt(2) === '>') {
+        this.advance(3)
+        return this.make('EDGE_DOTTED_ARROW', '-.->', startLine, startCol)
+      }
+      // `.-` short-form line closer — but only if followed by
+      // whitespace / EOF / something that indicates "end of edge"
+      // (otherwise `.-X` would be part of an identifier with an
+      // unfortunate character).
+      const after = this.charAt(2)
+      if (after === '' || after === ' ' || after === '\t' || after === '\n') {
+        this.advance(2)
+        return this.make('EDGE_DOTTED_LINE', '-.-', startLine, startCol)
+      }
+    }
+
     // Edge tokens. Mermaid accepts variable-length dashes and equals:
     // -->, --->, ---->, ... all mean "solid arrow". Same for thick (==>,
     // ===>, ...), dotted (-.->, -..->, ...), and lines (---, ----, ...,
