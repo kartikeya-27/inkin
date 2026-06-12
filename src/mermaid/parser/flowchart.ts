@@ -458,7 +458,12 @@ class FlowchartParser {
         kind: 'vertex',
         id,
         shape: bracket.shape,
-        ...(labelRead.text.length > 0 && { label: labelRead.text }),
+        // Brackets were present, so always set `label` — even when empty
+        // (`A[]` → label ''). This distinguishes an explicit empty label
+        // from a bare reference (`A` → no label, display id), which the
+        // `toMermaid` round-trip relies on for state-diagram `[*]`
+        // sentinels (terminal nodes with an empty label).
+        label: labelRead.text,
         position: { line: idTok.line, column: idTok.column },
       }
     }
