@@ -1,20 +1,27 @@
 import { type Diagram, type DiagramInput, DiagramStudio, type InkinThemeName } from '@inkin/core'
 import { fromMermaid, toMermaid } from '@inkin/core/mermaid'
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * "Mermaid import" sample for `@inkin/core@0.6.0`.
  *
- * Demonstrates the bidirectional bridge live:
- *   - Paste Mermaid `flowchart` / `stateDiagram` source into the
- *     textarea → it runs `fromMermaid` and renders the result as an
- *     editable `<DiagramStudio>`.
- *   - Edit the diagram (drag / rename / Inspector / Palette) — the
- *     "Mermaid output" pane re-emits the current diagram via `toMermaid`
- *     on every change, so reviewers can watch the round-trip in real
- *     time.
- *   - Syntax errors surface inline; best-effort warnings land in the
- *     DevTools console (lossy shapes / styles, dropped features).
+ * A live two-way Mermaid ⇄ diagram editor:
+ *   - Type or paste Mermaid `flowchart` / `stateDiagram` source into the
+ *     code box → the diagram redraws automatically (debounced, so a
+ *     half-typed line doesn't blank the canvas; the last valid diagram
+ *     stays on screen while the source is mid-edit / invalid).
+ *   - Drag / rename / add / delete in the diagram → the code box
+ *     rewrites itself to the canonical `toMermaid` output.
+ *
+ * The code box is the single source of truth; the diagram is derived
+ * from it via `fromMermaid`, and diagram edits flow back through
+ * `toMermaid`. A guard ref breaks the edit → code → re-import loop:
+ * when the code is rewritten from a diagram edit, the next debounced
+ * import is skipped (the diagram is already current).
+ *
+ * Best-effort import warnings (lossy shapes / styles, dropped features)
+ * land in the DevTools console; hard syntax errors show inline without
+ * discarding the last good diagram.
  */
 
 const STARTER = `flowchart LR
@@ -28,31 +35,48 @@ const STARTER = `flowchart LR
   end`
 
 export function MermaidImportShell({ theme }: { readonly theme: InkinThemeName }) {
-  const [source, setSource] = useState<string>(STARTER)
+  const [code, setCode] = useState<string>(STARTER)
   const [diagram, setDiagram] = useState<DiagramInput | null>(() => {
     const r = fromMermaid(STARTER)
     return r.ok ? r.diagram : null
   })
-  const [issues, setIssues] = useState<readonly { message: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
+  // When true, the next debounced import is skipped — the code was just
+  // rewritten from a diagram edit, so the diagram is already current.
+  const skipNextImport = useRef(false)
 
-  // Re-emit Mermaid from the current diagram on every edit so the output
-  // pane mirrors the live state.
-  const emitted = useMemo(() => (diagram ? toMermaid(diagram as Diagram) : ''), [diagram])
-
-  const runImport = () => {
-    const result = fromMermaid(source)
-    if (result.ok) {
-      setDiagram(result.diagram)
-      setIssues([])
-    } else {
-      setDiagram(null)
-      setIssues(result.issues)
+  // Code → diagram (debounced). Keeps the last good diagram on a
+  // transient syntax error so the canvas doesn't flicker to empty while
+  // the source is mid-edit.
+  useEffect(() => {
+    if (skipNextImport.current) {
+      skipNextImport.current = false
+      return
     }
+    const handle = setTimeout(() => {
+      const result = fromMermaid(code)
+      if (result.ok) {
+        setDiagram(result.diagram)
+        setError(null)
+      } else {
+        setError(result.issues.map((i) => i.message).join(' · '))
+      }
+    }, 400)
+    return () => clearTimeout(handle)
+  }, [code])
+
+  // Diagram → code (canonical re-emit). Marks the import guard so this
+  // programmatic code change doesn't bounce back into a re-import.
+  const handleDiagramChange = (next: Diagram) => {
+    setDiagram(next)
+    skipNextImport.current = true
+    setCode(toMermaid(next))
   }
 
   const border = theme === 'dark' ? '#30363d' : '#d1d9e0'
   const panelBg = theme === 'dark' ? '#0d1117' : '#ffffff'
   const codeColor = theme === 'dark' ? '#e6edf3' : '#1f2328'
+  const errColor = theme === 'dark' ? '#ff7b72' : '#cf222e'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -69,28 +93,17 @@ export function MermaidImportShell({ theme }: { readonly theme: InkinThemeName }
       >
         <strong>Mermaid bridge</strong>
         <span style={{ opacity: 0.7 }}>
-          paste Mermaid → import → edit → re-emit (round-trip)
+          live two-way — type Mermaid to redraw, edit the diagram to rewrite the code
         </span>
-        <button
-          type="button"
-          onClick={runImport}
-          data-testid="mermaid-import-btn"
-          style={{
-            marginLeft: 'auto',
-            padding: '4px 12px',
-            border: `1px solid ${border}`,
-            background: 'transparent',
-            color: 'inherit',
-            cursor: 'pointer',
-            borderRadius: 4,
-          }}
-        >
-          Import →
-        </button>
+        {error !== null && (
+          <span data-testid="mermaid-error" style={{ marginLeft: 'auto', color: errColor }}>
+            {error}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Left: source + output panes */}
+        {/* Left: the single live code box (source of truth). */}
         <div
           style={{
             display: 'flex',
@@ -100,74 +113,41 @@ export function MermaidImportShell({ theme }: { readonly theme: InkinThemeName }
             minHeight: 0,
           }}
         >
-          <label style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <span style={{ padding: '6px 12px', fontSize: 12, opacity: 0.7 }}>
-              Mermaid source (editable)
-            </span>
-            <textarea
-              data-testid="mermaid-source"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              spellCheck={false}
-              style={{
-                flex: 1,
-                resize: 'none',
-                border: 'none',
-                borderTop: `1px solid ${border}`,
-                padding: '10px 12px',
-                background: panelBg,
-                color: codeColor,
-                fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-                fontSize: 12,
-                lineHeight: 1.5,
-                outline: 'none',
-              }}
-            />
-          </label>
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <span style={{ padding: '6px 12px', fontSize: 12, opacity: 0.7 }}>
-              toMermaid(currentDiagram) — updates as you edit
-            </span>
-            <pre
-              data-testid="mermaid-output"
-              style={{
-                flex: 1,
-                margin: 0,
-                overflow: 'auto',
-                borderTop: `1px solid ${border}`,
-                padding: '10px 12px',
-                background: panelBg,
-                color: codeColor,
-                fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-                fontSize: 12,
-                lineHeight: 1.5,
-              }}
-            >
-              {emitted}
-            </pre>
-          </div>
+          <span style={{ padding: '6px 12px', fontSize: 12, opacity: 0.7 }}>
+            Mermaid (edit here, or edit the diagram →)
+          </span>
+          <textarea
+            data-testid="mermaid-source"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            spellCheck={false}
+            style={{
+              flex: 1,
+              resize: 'none',
+              border: 'none',
+              borderTop: `1px solid ${border}`,
+              padding: '10px 12px',
+              background: panelBg,
+              color: error !== null ? errColor : codeColor,
+              fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+              fontSize: 12,
+              lineHeight: 1.5,
+              outline: 'none',
+            }}
+          />
         </div>
 
-        {/* Right: the editable diagram */}
+        {/* Right: the editable diagram derived from the code. */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
           {diagram !== null ? (
-            <DiagramStudio
-              value={diagram}
-              onChange={(next: Diagram) => setDiagram(next)}
-              theme={theme}
-              controls
-            />
+            <DiagramStudio value={diagram} onChange={handleDiagramChange} theme={theme} controls />
           ) : (
             <div
               role="alert"
               style={{ padding: 20, fontFamily: 'system-ui, sans-serif', fontSize: 13 }}
             >
               <strong>Could not import this Mermaid source.</strong>
-              <ul>
-                {issues.map((i) => (
-                  <li key={i.message}>{i.message}</li>
-                ))}
-              </ul>
+              <p style={{ color: errColor }}>{error}</p>
             </div>
           )}
         </div>
