@@ -40,6 +40,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'schema/index': 'src/schema/index.ts',
+    'mermaid/index': 'src/mermaid/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

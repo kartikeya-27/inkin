@@ -35,6 +35,11 @@
       "import": "./dist/schema/index.js",
       "require": "./dist/schema/index.cjs"
     },
+    "./mermaid": {
+      "types": "./dist/mermaid/index.d.ts",
+      "import": "./dist/mermaid/index.js",
+      "require": "./dist/mermaid/index.cjs"
+    },
     "./styles.css": "./dist/styles.css",
     "./diagram.schema.json": "./dist/schema/diagram.schema.json",
     "./package.json": "./package.json"
