@@ -110,6 +110,8 @@ export type TokenKind =
   | 'AMP' //                &
   | 'FLAG_END' //           >  (asymmetric/flag node shape opener)
   | 'CONCURRENT' //         -- (state-diagram inside `state X { ... }`)
+  | 'L_PSEUDO' //           << (state-diagram <<choice>> / <<fork>> / <<join>>)
+  | 'R_PSEUDO' //           >>
 
   // Identifiers and literals
   | 'IDENT'
@@ -259,6 +261,33 @@ export class Tokenizer {
     return null
   }
 
+  /**
+   * Parser-driven read of the rest of the current line as raw text.
+   * Used for state-diagram transition / state descriptions
+   * (`A --> B : event label`) where the text after the colon runs to
+   * the end of the line. Stops at — and does NOT consume — a NEWLINE,
+   * SEMI, COMMENT (`%%`), or EOF. Returns the trimmed text (may be the
+   * empty string). Unlike {@link readUntilMarker} this never returns
+   * `null`; EOF simply terminates the read.
+   */
+  readToEndOfLine(): { text: string; line: number; column: number } {
+    this.peeked = null
+    const startLine = this.line
+    const startCol = this.col
+    const startPos = this.pos
+    while (this.pos < this.input.length) {
+      const c = this.input[this.pos]
+      if (c === '\n' || c === ';') break
+      if (c === '%' && this.input.startsWith('%%', this.pos)) break
+      this.advance(1)
+    }
+    return {
+      text: this.input.slice(startPos, this.pos).trim(),
+      line: startLine,
+      column: startCol,
+    }
+  }
+
   /** Internal: read the next primitive token from the input buffer. */
   private readNext(): Token {
     // Skip non-newline whitespace.
@@ -348,6 +377,18 @@ export class Tokenizer {
         this.advance(marker.length)
         return this.make(kind, marker, startLine, startCol)
       }
+    }
+
+    // State-diagram pseudostate brackets `<<choice>>` / `<<fork>>` /
+    // `<<join>>`. Lexed before the single `>` (FLAG_END) below so the
+    // longest match wins.
+    if (this.starts('<<')) {
+      this.advance(2)
+      return this.make('L_PSEUDO', '<<', startLine, startCol)
+    }
+    if (this.starts('>>')) {
+      this.advance(2)
+      return this.make('R_PSEUDO', '>>', startLine, startCol)
     }
 
     // Style separator + colon

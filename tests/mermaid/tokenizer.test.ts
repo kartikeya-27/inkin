@@ -473,6 +473,69 @@ describe('tokenizer — state-diagram fixture lines', () => {
   it('lexes a transition with a colon-delimited event label', () => {
     expect(kinds('A --> B : on_click')).toEqual(['IDENT', 'EDGE_ARROW', 'IDENT', 'COLON', 'IDENT'])
   })
+
+  it('lexes the pseudostate brackets `<<` and `>>` (longest-match over `>`)', () => {
+    expect(pairs('state s1 <<choice>>')).toEqual([
+      ['KW_STATE', 'state'],
+      ['IDENT', 's1'],
+      ['L_PSEUDO', '<<'],
+      ['IDENT', 'choice'],
+      ['R_PSEUDO', '>>'],
+    ])
+  })
+
+  it('keeps the single `>` (FLAG_END) distinct from `>>`', () => {
+    expect(kinds('A>label]')).toEqual(['IDENT', 'FLAG_END', 'IDENT', 'RBRACKET'])
+    expect(kinds('>>')).toEqual(['R_PSEUDO'])
+  })
+})
+
+describe('tokenizer — `readToEndOfLine` for state/transition descriptions', () => {
+  it('reads the rest of the line as raw text after a colon', () => {
+    const t = new Tokenizer('A --> B : some event label\nC --> D')
+    // Consume up to and including the colon.
+    t.next() // IDENT A
+    t.next() // EDGE_ARROW
+    t.next() // IDENT B
+    t.next() // COLON
+    const r = t.readToEndOfLine()
+    expect(r.text).toBe('some event label')
+    // The terminating newline is NOT consumed.
+    expect(t.next().kind).toBe('NEWLINE')
+  })
+
+  it('stops at a `;` separator without consuming it', () => {
+    const t = new Tokenizer('A : desc; B')
+    t.next() // IDENT A
+    t.next() // COLON
+    const r = t.readToEndOfLine()
+    expect(r.text).toBe('desc')
+    expect(t.next().kind).toBe('SEMI')
+  })
+
+  it('stops at a `%%` comment without consuming it', () => {
+    const t = new Tokenizer('A : desc %% trailing comment')
+    t.next() // IDENT A
+    t.next() // COLON
+    const r = t.readToEndOfLine()
+    expect(r.text).toBe('desc')
+    expect(t.next().kind).toBe('COMMENT')
+  })
+
+  it('returns empty text at end of line / EOF', () => {
+    const t = new Tokenizer('A :')
+    t.next() // IDENT A
+    t.next() // COLON
+    const r = t.readToEndOfLine()
+    expect(r.text).toBe('')
+  })
+
+  it('trims surrounding whitespace from the description', () => {
+    const t = new Tokenizer('A :    padded description   \n')
+    t.next() // IDENT A
+    t.next() // COLON
+    expect(t.readToEndOfLine().text).toBe('padded description')
+  })
 })
 
 describe('tokenizer — invalid / edge cases', () => {

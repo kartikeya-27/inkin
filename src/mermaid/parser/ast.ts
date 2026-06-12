@@ -130,16 +130,20 @@ export interface StateDiagramAst {
   readonly position: Position
 }
 
-/** State-diagram statement union. Filled in Phase 5. */
-export type StateStatement = StateDecl | StateTransition
+/** State-diagram statement union (Phase 5). */
+export type StateStatement = StateDecl | StateTransition | StateCompound
+
+/** A pseudostate marker recognized in the source. `'normal'` is a plain
+ * state; the rest are Mermaid pseudostate forms the converter maps to
+ * `rect` with a warn (`choice`/`fork`/`join`) or to a reserved
+ * terminal sentinel (`start`/`end`, from `[*]`). */
+export type StateType = 'normal' | 'choice' | 'fork' | 'join' | 'start' | 'end'
 
 export interface StateDecl {
   readonly kind: 'state'
   readonly id: string
   readonly label?: string
-  /** `'normal'` for plain states; `'choice'` / `'fork'` / `'join'` for
-   * Mermaid's pseudostate forms (rendered as rect with a warn). */
-  readonly type: 'normal' | 'choice' | 'fork' | 'join' | 'start' | 'end'
+  readonly type: StateType
   readonly position: Position
 }
 
@@ -150,6 +154,22 @@ export interface StateTransition {
   readonly from: string
   readonly to: string
   readonly description?: string
+  readonly position: Position
+}
+
+/**
+ * A compound state: `state X { ... }`. Maps to an inkin cluster with
+ * the inner statements as its children. Mermaid allows nesting; like
+ * subgraphs (Phase 4), the parser flattens nested compound states into
+ * the outermost cluster with one `unsupported` warn per nesting level.
+ * The `--` concurrency divider inside a compound body emits an
+ * `unsupported` warn and is treated as a plain separator.
+ */
+export interface StateCompound {
+  readonly kind: 'compound'
+  readonly id: string
+  readonly label?: string
+  readonly statements: readonly StateStatement[]
   readonly position: Position
 }
 
