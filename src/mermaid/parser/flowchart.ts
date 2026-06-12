@@ -183,7 +183,10 @@ class FlowchartParser {
       }
     }
 
-    if (this.issues.length > 0) {
+    // `syntax` issues fail the parse; `unsupported` issues become
+    // warnings on an otherwise-successful parse (best-effort import).
+    const syntaxIssues = this.issues.filter((i) => i.kind === 'syntax')
+    if (syntaxIssues.length > 0) {
       return { ok: false, issues: this.issues }
     }
     return {
@@ -194,6 +197,7 @@ class FlowchartParser {
         statements,
         position: this.headerPosition,
       },
+      warnings: this.issues, // all `unsupported` at this point
     }
   }
 

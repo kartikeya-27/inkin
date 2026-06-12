@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
   ParseFailure,
+  ParseIssue,
   StateCompound,
   StateDecl,
   StateDiagramAst,
@@ -35,6 +36,22 @@ function parseExpectingFailure(input: string): ParseFailure {
     throw new Error(`expected parse failure, got success: ${JSON.stringify(result.value)}`)
   }
   return result
+}
+
+/**
+ * Parse expecting a SUCCESSFUL best-effort import that collected
+ * `unsupported` warnings. Returns the warnings array.
+ */
+function parseExpectingWarnings(input: string): readonly ParseIssue[] {
+  const result = parseStateDiagram(new Tokenizer(input))
+  if (!result.ok) {
+    throw new Error(
+      `expected best-effort success, got failure:\n${result.issues
+        .map((i) => `  - [${i.kind}] ${i.message}`)
+        .join('\n')}`,
+    )
+  }
+  return result.warnings
 }
 
 function states(stmts: readonly StateStatement[]): StateDecl[] {
@@ -146,11 +163,10 @@ describe('state-diagram parser — state declarations', () => {
 
   it('warns on an unknown pseudostate but still produces a state', () => {
     const result = parseStateDiagram(new Tokenizer('stateDiagram-v2\nstate s1 <<bogus>>'))
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(
-      result.issues.some((i) => i.kind === 'unsupported' && /pseudostate/i.test(i.message)),
-    ).toBe(true)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.some((i) => /pseudostate/i.test(i.message))).toBe(true)
+    expect(states(result.value.statements)[0]).toMatchObject({ id: 's1', type: 'normal' })
   })
 })
 
@@ -182,11 +198,12 @@ state Outer {
   }
 }`),
     )
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(
-      result.issues.some((i) => i.kind === 'unsupported' && /nested compound/i.test(i.message)),
-    ).toBe(true)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.some((i) => /nested compound/i.test(i.message))).toBe(true)
+    // The inner compound's children lift into the outer compound.
+    const outer = compounds(result.value.statements)[0]
+    expect(transitions(outer!.statements)).toHaveLength(2)
   })
 
   it('reports a syntax error when a compound is never closed', () => {
@@ -197,36 +214,35 @@ state Outer {
   })
 })
 
-describe('state-diagram parser — unsupported features', () => {
-  it('records an unsupported issue for `note left of`', () => {
-    const failure = parseExpectingFailure('stateDiagram-v2\nA --> B\nnote left of A : a note')
-    expect(failure.issues.some((i) => i.kind === 'unsupported' && /note/i.test(i.message))).toBe(
-      true,
-    )
+describe('state-diagram parser — unsupported features warn (best-effort)', () => {
+  it('warns on `note left of`', () => {
+    const warnings = parseExpectingWarnings('stateDiagram-v2\nA --> B\nnote left of A : a note')
+    expect(warnings.some((i) => /note/i.test(i.message))).toBe(true)
   })
 
-  it('records an unsupported issue for the `--` concurrency divider', () => {
-    const failure = parseExpectingFailure(`stateDiagram-v2
+  it('warns on the `--` concurrency divider', () => {
+    const warnings = parseExpectingWarnings(`stateDiagram-v2
 state Fork {
   A --> B
   --
   C --> D
 }`)
-    expect(
-      failure.issues.some((i) => i.kind === 'unsupported' && /concurrency/i.test(i.message)),
-    ).toBe(true)
+    expect(warnings.some((i) => /concurrency/i.test(i.message))).toBe(true)
   })
 
   it('silently skips `hide empty description` (rendering hint, no warn)', () => {
-    const ast = parse('stateDiagram-v2\nhide empty description\nA --> B')
-    expect(transitions(ast.statements)).toHaveLength(1)
+    const result = parseStateDiagram(
+      new Tokenizer('stateDiagram-v2\nhide empty description\nA --> B'),
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(transitions(result.value.statements)).toHaveLength(1)
+    expect(result.warnings).toHaveLength(0)
   })
 
-  it('records an unsupported issue for classDef', () => {
-    const failure = parseExpectingFailure('stateDiagram-v2\nclassDef foo fill:#f00')
-    expect(
-      failure.issues.some((i) => i.kind === 'unsupported' && /classDef/i.test(i.message)),
-    ).toBe(true)
+  it('warns on classDef', () => {
+    const warnings = parseExpectingWarnings('stateDiagram-v2\nclassDef foo fill:#f00')
+    expect(warnings.some((i) => /classDef/i.test(i.message))).toBe(true)
   })
 })
 

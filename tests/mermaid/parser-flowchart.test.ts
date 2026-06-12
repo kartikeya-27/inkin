@@ -4,6 +4,7 @@ import type {
   FlowchartAst,
   FlowchartStatement,
   ParseFailure,
+  ParseIssue,
   SubgraphStatement,
   VertexStatement,
 } from '../../src/mermaid/parser/ast'
@@ -42,6 +43,23 @@ function parseExpectingFailure(input: string): ParseFailure {
     throw new Error(`expected parse failure, got success: ${JSON.stringify(result.value)}`)
   }
   return result
+}
+
+/**
+ * Parse expecting a SUCCESSFUL best-effort import that collected
+ * `unsupported` warnings (out-of-scope features degraded / dropped,
+ * not a hard failure). Returns the warnings array for assertions.
+ */
+function parseExpectingWarnings(input: string): readonly ParseIssue[] {
+  const result = parseFlowchart(new Tokenizer(input))
+  if (!result.ok) {
+    throw new Error(
+      `expected best-effort success, got failure:\n${result.issues
+        .map((i) => `  - [${i.kind}] ${i.message}`)
+        .join('\n')}`,
+    )
+  }
+  return result.warnings
 }
 
 function vertices(stmts: readonly FlowchartStatement[]): VertexStatement[] {
@@ -271,59 +289,55 @@ B --> C`
   })
 })
 
-describe('flowchart parser — unsupported features (per Phase 1 spec)', () => {
-  it('returns an unsupported issue for `style` directives', () => {
-    const failure = parseExpectingFailure('flowchart\nA --> B\nstyle A fill:#f00')
-    expect(failure.issues.some((i) => i.kind === 'unsupported' && /style/i.test(i.message))).toBe(
-      true,
-    )
+describe('flowchart parser — unsupported features warn (best-effort import)', () => {
+  // Out-of-scope features are well-formed Mermaid, so the parse SUCCEEDS
+  // with the feature dropped/degraded and an `unsupported` warning —
+  // not a hard failure. (The `fromMermaid` converter turns these
+  // warnings into one console.warn per dropped-feature kind.)
+  it('warns on `style` directives', () => {
+    const warnings = parseExpectingWarnings('flowchart\nA --> B\nstyle A fill:#f00')
+    expect(warnings.some((i) => /style/i.test(i.message))).toBe(true)
   })
 
-  it('returns an unsupported issue for `classDef`', () => {
-    const failure = parseExpectingFailure('flowchart\nclassDef warn fill:#f99')
-    expect(
-      failure.issues.some((i) => i.kind === 'unsupported' && /classDef/i.test(i.message)),
-    ).toBe(true)
+  it('warns on `classDef`', () => {
+    const warnings = parseExpectingWarnings('flowchart\nclassDef warn fill:#f99')
+    expect(warnings.some((i) => /classDef/i.test(i.message))).toBe(true)
   })
 
-  it('returns an unsupported issue for `click` interactivity', () => {
-    const failure = parseExpectingFailure('flowchart\nA --> B\nclick A "https://example.com"')
-    expect(failure.issues.some((i) => i.kind === 'unsupported' && /click/i.test(i.message))).toBe(
-      true,
-    )
+  it('warns on `click` interactivity', () => {
+    const warnings = parseExpectingWarnings('flowchart\nA --> B\nclick A "https://example.com"')
+    expect(warnings.some((i) => /click/i.test(i.message))).toBe(true)
   })
 
-  it('returns an unsupported issue for trapezoid `[/...\\]`', () => {
-    const failure = parseExpectingFailure('flowchart\nA[/trap\\]')
-    expect(
-      failure.issues.some((i) => i.kind === 'unsupported' && /trapezoid/i.test(i.message)),
-    ).toBe(true)
+  it('warns on trapezoid `[/...\\]` but still produces the node as a rect', () => {
+    const result = parseFlowchart(new Tokenizer('flowchart\nA[/trap\\]'))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.some((i) => /trapezoid/i.test(i.message))).toBe(true)
+    expect(vertices(result.value.statements)[0]).toMatchObject({ id: 'A', shape: 'rect' })
   })
 
-  it('returns an unsupported issue for ellipse `(-...-)`', () => {
-    const failure = parseExpectingFailure('flowchart\nA(-ellipse-)')
-    expect(failure.issues.some((i) => i.kind === 'unsupported' && /ellipse/i.test(i.message))).toBe(
-      true,
-    )
+  it('warns on ellipse `(-...-)`', () => {
+    const warnings = parseExpectingWarnings('flowchart\nA(-ellipse-)')
+    expect(warnings.some((i) => /ellipse/i.test(i.message))).toBe(true)
   })
 
-  it('collects all issues from a single parse (multi-error reporting)', () => {
-    const failure = parseExpectingFailure(`flowchart
+  it('collects all warnings from a single parse (multi-warning reporting)', () => {
+    const warnings = parseExpectingWarnings(`flowchart
 style A fill:#f00
 classDef warn fill:#f99
 click A "url"`)
-    expect(failure.issues.length).toBeGreaterThanOrEqual(3)
+    expect(warnings.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('every warning carries an accurate source position', () => {
+    const warnings = parseExpectingWarnings('flowchart\n  style A fill:#f00')
+    const issue = warnings.find((i) => /style/i.test(i.message))
+    expect(issue?.position).toEqual({ line: 2, column: 3 })
   })
 })
 
-describe('flowchart parser — error positions', () => {
-  it('reports the column of the offending token for unsupported features', () => {
-    const failure = parseExpectingFailure('flowchart\n  style A fill:#f00')
-    const issue = failure.issues.find((i) => i.kind === 'unsupported')
-    expect(issue?.position.line).toBe(2)
-    expect(issue?.position.column).toBe(3)
-  })
-
+describe('flowchart parser — syntax error positions', () => {
   it('reports syntax-error positions accurately', () => {
     const failure = parseExpectingFailure('A --> B')
     expect(failure.issues[0]?.position).toEqual({ line: 1, column: 1 })
@@ -405,26 +419,29 @@ X --> Y
 end
 end`),
     )
-    // Nested subgraph emits unsupported — collected in issues, parse fails.
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    const nestedWarn = result.issues.find(
-      (i) => i.kind === 'unsupported' && /nested subgraph/i.test(i.message),
-    )
+    // Nested subgraph is best-effort flattened — parse SUCCEEDS with a
+    // warning, and the inner subgraph's children lift into the outer one.
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const nestedWarn = result.warnings.find((i) => /nested subgraph/i.test(i.message))
     expect(nestedWarn).toBeDefined()
+    // Outer cluster now holds both A→B and the flattened X→Y.
+    const outer = subgraphs(result.value.statements)[0]
+    expect(edges(outer!.statements)).toHaveLength(2)
   })
 
-  it('records an unsupported issue for `direction` inside a subgraph body', () => {
-    const failure = parseExpectingFailure(`flowchart
+  it('warns on `direction` inside a subgraph body but still parses the body', () => {
+    const result = parseFlowchart(
+      new Tokenizer(`flowchart
 subgraph G1
 direction LR
 A --> B
-end`)
-    expect(
-      failure.issues.some(
-        (i) => i.kind === 'unsupported' && /per-subgraph.*direction/i.test(i.message),
-      ),
-    ).toBe(true)
+end`),
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.some((i) => /per-subgraph.*direction/i.test(i.message))).toBe(true)
+    expect(edges(subgraphs(result.value.statements)[0]!.statements)).toHaveLength(1)
   })
 
   it('reports a syntax error when a subgraph is never closed by `end`', () => {

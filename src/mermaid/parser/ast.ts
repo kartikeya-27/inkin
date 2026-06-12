@@ -179,11 +179,26 @@ export interface StateCompound {
 
 export type ParseResult<T> = ParseSuccess<T> | ParseFailure
 
+/**
+ * A successful parse. `value` is the built AST. `warnings` carries every
+ * `unsupported` issue the parser collected — features that are
+ * well-formed Mermaid but outside inkin's documented subset, which the
+ * parser dropped or degraded rather than failed on (the "best-effort
+ * import" contract). `warnings` is empty for a fully-in-scope source.
+ */
 export interface ParseSuccess<T> {
   readonly ok: true
   readonly value: T
+  readonly warnings: readonly ParseIssue[]
 }
 
+/**
+ * A failed parse. At least one `syntax` issue occurred — the input is
+ * malformed (missing header, unmatched bracket, stray `end`, etc.) and
+ * the parser couldn't trust the structure it built. `issues` carries
+ * every collected issue (both `syntax` and any `unsupported`) so a
+ * consumer sees the complete picture.
+ */
 export interface ParseFailure {
   readonly ok: false
   readonly issues: readonly ParseIssue[]
@@ -193,12 +208,13 @@ export interface ParseIssue {
   readonly message: string
   /**
    * `'syntax'`: malformed Mermaid input (unmatched brackets, missing
-   * tokens, etc.).
+   * tokens, etc.) — causes the parse to fail.
    * `'unsupported'`: well-formed Mermaid input that uses a feature
-   * outside the inkin bridge's documented subset (per Phase 1's spec).
-   * The distinction matters for `parseFromMermaid` / `fromMermaid`
-   * consumers — `unsupported` issues can be filtered out for a
-   * "best-effort import" path, `syntax` issues should always halt.
+   * outside the inkin bridge's documented subset (per Phase 1's spec)
+   * — dropped or degraded with a warning; the parse still succeeds.
+   * This split is what powers the best-effort import path:
+   * `unsupported` becomes a `console.warn` in `fromMermaid` while
+   * `syntax` halts with `{ ok: false }`.
    */
   readonly kind: 'syntax' | 'unsupported'
   readonly position: Position
