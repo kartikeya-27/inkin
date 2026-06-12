@@ -333,6 +333,81 @@ import schema from '@inkin/core/diagram.schema.json' with { type: 'json' }
 // or fetch it from your CDN of choice: unpkg, jsdelivr, etc.
 ```
 
+## Mermaid bridge
+
+New in 0.6.0. Convert between Mermaid `flowchart` / `graph` / `stateDiagram` source and inkin's `Diagram` in both directions — paste existing Mermaid markdown, edit it visually with the editor chrome, export it back. Two pure functions at the framework-agnostic `@inkin/core/mermaid` subpath (no React / xyflow / DOM pulled in; consumers who don't import it pay zero bytes):
+
+```ts
+import { fromMermaid, toMermaid } from '@inkin/core/mermaid'
+import { DiagramStudio } from '@inkin/core'
+
+// --- import: Mermaid text → inkin Diagram ---
+const result = fromMermaid(`flowchart LR
+  browser[Browser] --> api[API Gateway]
+  api -.-> web[Web Service]
+  web --> db[(Database)]`)
+
+if (result.ok) {
+  // result.diagram is a validated inkin Diagram — render it editable
+  return <DiagramStudio value={result.diagram} onChange={setDiagram} />
+}
+// else: result.issues lists field-path-precise syntax errors
+
+// --- export: inkin Diagram → Mermaid text ---
+const text = toMermaid(diagram)              // 'flowchart TB\n…'
+const lr = toMermaid(diagram, { direction: 'LR' })
+```
+
+**`fromMermaid` is a best-effort import.** Well-formed Mermaid that uses a feature outside inkin's supported subset (styling, click handlers, notes, exotic shapes, nested clusters) is dropped or degraded with a one-time `console.warn` rather than failing — only malformed input returns `{ ok: false, issues }`. So a real-world diagram pasted from elsewhere renders something usable, with clear diagnostics about what didn't translate.
+
+### Supported Mermaid syntax
+
+**Flowchart / graph** — `flowchart` and `graph` headers, all directions (`TB` / `BT` / `LR` / `RL` / `TD`):
+
+| Mermaid | inkin | Notes |
+|---|---|---|
+| `A[label]` | `rect` node | faithful |
+| `A((label))` / `A(((label)))` | `terminal` node | faithful (circle / double-circle) |
+| `A(label)` / `A{label}` / `A{{label}}` / `A[(label)]` / `A[[label]]` / `A([label])` / `A>label]` | `rect` / `terminal` (nearest) | degraded + warn — inkin has two shapes, not Mermaid's dozen |
+| `A --> B` | solid edge | faithful |
+| `A -.-> B` | dashed edge | faithful (dotted → dashed) |
+| `A ==> B` / `A ~~~ B` | solid edge | degraded + warn (no thick / invisible style) |
+| `A --- B` (no arrowhead) | solid edge | degraded + warn (inkin always renders arrows) |
+| `A -->\|label\| B`, `A -- label --> B` | edge with label | faithful |
+| `subgraph X[label] … end` | cluster | faithful (nested subgraphs flattened + warn) |
+
+**State diagram** — `stateDiagram` / `stateDiagram-v2`:
+
+| Mermaid | inkin | Notes |
+|---|---|---|
+| `[*]` | `terminal` sentinel node | start (`__start__`) / end (`__end__`) by position |
+| `state X` / `state "Name" as X` | `rect` node | faithful |
+| `X : description` | node label | faithful |
+| `A --> B : event` | edge with label | faithful |
+| `state X { … }` | cluster | compound state → cluster (nested flattened + warn) |
+| `state X <<choice>>` / `<<fork>>` / `<<join>>` | `rect` node | degraded + warn (no pseudostate shape) |
+
+**Not imported** (dropped with a warn): `classDef` / `class` / `style` / `linkStyle` styling, `click` / `href` interactivity, `note left of` / `note right of`, per-subgraph `direction`, the `--` concurrency divider, accessibility annotations. Trapezoid / parallelogram / ellipse shapes degrade to `rect`.
+
+**Round-trip** is semantic, not byte-identical: `fromMermaid(toMermaid(d))` re-parses to a `Diagram` equal to `d` (whitespace, declaration order, and the flowchart-vs-stateDiagram header may differ — inkin's `Diagram` is a flat graph, so `toMermaid` always emits a `flowchart`). Animated `flows` have no Mermaid equivalent and are dropped on export with a warn.
+
+> **Source & attribution**: the inkin parser uses the Mermaid grammar (`flowchart` + `stateDiagram`) as its syntactic spec, and the round-trip test corpus is adapted from Mermaid's own parser fixtures. Mermaid is MIT-licensed (© 2015 Knut Sveidqvist and Mermaid contributors). The parser, converter, and emitter implementations are original to inkin.
+
+### Mermaid + AI
+
+Some models emit Mermaid more reliably than raw JSON. Compose the bridge with `safeParse` for a one-import round-trip:
+
+```ts
+import { fromMermaid } from '@inkin/core/mermaid'
+
+const result = fromMermaid(modelOutput) // model returned Mermaid text
+if (result.ok) {
+  render(result.diagram)
+} else {
+  // feed result.issues back to the model for a single-round correction
+}
+```
+
 ## Validation errors
 
 `parse()` throws `InkinValidationError` with a multi-line message and a structured `issues[]` array:

@@ -3,27 +3,28 @@ import { useCallback, useState } from 'react'
 import { architecture } from './samples/architecture'
 import { editable as initialEditable } from './samples/editable'
 import { lifecycle } from './samples/lifecycle'
+import { MermaidImportShell } from './samples/mermaid-import'
 import { minimal } from './samples/minimal'
 
 /**
- * Examples playground for `@inkin/core@0.5.0` — the flow-animation release.
+ * Examples playground for `@inkin/core@0.6.0` — the Mermaid-bridge release.
  *
- * Four samples wired via a header dropdown:
+ * Five samples wired via a header dropdown:
  *   - Minimal, Lifecycle  — read-only (no onChange). Carry-overs from
  *     0.2.0 / 0.3.0 demonstrating that the simple surface still works
  *     byte-for-byte (no Inspector/Palette in read-only mode).
  *   - Architecture (read-only) — clustered diagram + two animated 0.5.0
  *     flows (request + queue-drain, staggered half-a-loop apart) so
- *     reviewers can see the headline 0.5.0 feature in a production-style
+ *     reviewers can see the 0.5.0 flow feature in a production-style
  *     layout.
- *   - Editable playground (extended in 0.5.0) — passes onChange so the
- *     Inspector + Palette auto-mount, AND ships a single `pipeline` flow
- *     so reviewers can watch the 0.3.0 `pruneFlows` cascade strip / remove
- *     flows when underlying edges are deleted. Secondary toolbar exposes
- *     the `inspector` / `palette` prop toggles for the chrome semantics
- *     check. Flows are NOT editable through the UI in 0.5.0 (master plan
- *     reserves the flow editor for 1.1.0); mutating `value.flows` in the
- *     parent's `useState` is the only way to re-introduce or modify them.
+ *   - Editable playground — passes onChange so the Inspector + Palette
+ *     auto-mount, AND ships a single `pipeline` flow so reviewers can
+ *     watch the 0.3.0 `pruneFlows` cascade strip / remove flows when
+ *     underlying edges are deleted.
+ *   - Mermaid import (new in 0.6.0) — paste Mermaid source, import it via
+ *     `fromMermaid`, edit the resulting diagram, and watch the
+ *     `toMermaid` output pane update live. The "paste Mermaid, edit
+ *     visually, export back" round-trip.
  */
 
 const readOnlySamples = {
@@ -33,13 +34,14 @@ const readOnlySamples = {
 } as const
 
 type ReadOnlyKey = keyof typeof readOnlySamples
-type SampleKey = ReadOnlyKey | 'editable'
+type SampleKey = ReadOnlyKey | 'editable' | 'mermaid'
 
 const sampleLabels: Record<SampleKey, string> = {
   minimal: 'Minimal — 3 nodes (read-only)',
   lifecycle: 'Lifecycle — state machine (read-only)',
   architecture: 'Architecture — clustered + animated flows (read-only)',
   editable: 'Editable playground — drag, edit, delete, chrome + flow',
+  mermaid: 'Mermaid import — paste, edit, export back (round-trip)',
 }
 
 export function App() {
@@ -70,7 +72,7 @@ export function App() {
         }}
       >
         <strong>@inkin/core</strong>
-        <span style={{ opacity: 0.7 }}>0.5.0 flow-animation release</span>
+        <span style={{ opacity: 0.7 }}>0.6.0 Mermaid-bridge release</span>
         <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           Sample
           <select
@@ -104,6 +106,8 @@ export function App() {
       <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {sampleKey === 'editable' ? (
           <EditablePlaygroundShell theme={theme} />
+        ) : sampleKey === 'mermaid' ? (
+          <MermaidImportShell theme={theme} />
         ) : (
           <DiagramStudio value={readOnlySamples[sampleKey]} theme={theme} minimap controls />
         )}
