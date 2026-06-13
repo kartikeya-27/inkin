@@ -12,6 +12,19 @@
     "limit": "100 kB"
   },
   {
+    "name": "@inkin/core/mermaid (ESM, full surface — fromMermaid + toMermaid, incl. zod)",
+    "path": "dist/mermaid/index.js",
+    "import": "{ fromMermaid, toMermaid }",
+    "limit": "100 kB"
+  },
+  {
+    "name": "@inkin/core/mermaid (inkin-only code — excludes zod; parser + converter)",
+    "path": "dist/mermaid/index.js",
+    "import": "{ fromMermaid, toMermaid }",
+    "ignore": ["zod"],
+    "limit": "12 kB"
+  },
+  {
     "name": "@inkin/core (ESM, React surface — DiagramStudio + types)",
     "path": "dist/index.js",
     "import": "{ DiagramStudio, toSvg, parse }",

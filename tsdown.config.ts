@@ -40,6 +40,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'schema/index': 'src/schema/index.ts',
+    'mermaid/index': 'src/mermaid/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
@@ -62,5 +63,31 @@ export default defineConfig({
   // documented import path.
   css: {
     fileName: 'styles.css',
+  },
+  // Suppress the cosmetic `SOURCEMAP_BROKEN` warnings emitted by the
+  // `@tsdown/css` / `@tsdown/css:collect` plugins. As of `@tsdown/css`
+  // 0.22.2 + rolldown 1.1.0, the CSS plugins transform stylesheets
+  // without handing rolldown a sourcemap for the transformation, and
+  // rolldown now warns once per transformed CSS module (~60 lines on a
+  // full build). The warnings are harmless: the build exits 0, the
+  // published `dist/styles.css` is correct, no `styles.css.map` ships,
+  // and the JS sourcemaps (the ones consumers use for stack traces) are
+  // emitted normally. `@tsdown/css` exposes no option to disable its
+  // CSS sourcemap behavior, so we filter the single noisy log code at
+  // the rolldown level — wrapping (not replacing) tsdown's own `onLog`
+  // so every OTHER warning, including any future JS `SOURCEMAP_BROKEN`,
+  // still surfaces. Remove this once @tsdown/css emits CSS sourcemaps.
+  inputOptions(options) {
+    const previous = options.onLog
+    options.onLog = (level, log, defaultHandler) => {
+      const fromCssPlugin = typeof log.plugin === 'string' && log.plugin.includes('@tsdown/css')
+      if (log.code === 'SOURCEMAP_BROKEN' && fromCssPlugin) return
+      if (previous) {
+        previous(level, log, defaultHandler)
+      } else {
+        defaultHandler(level, log)
+      }
+    }
+    return options
   },
 })

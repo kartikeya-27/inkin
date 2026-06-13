@@ -2,14 +2,15 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.5.0` — the **flow-animation release**. Declare a `flows?: Flow[]` field on your `Diagram` and one animated `<circle>` per flow traverses its composed edge path via native CSS `offset-path` keyframes. No animation library. Pixel-perfect alignment with xyflow's rendered edges. Honors `prefers-reduced-motion: reduce` with a static-dot fallback. Editor chrome from 0.4.x (Inspector + Palette + cross-cluster drag) is unchanged. Schema, editing primitives, and `<DiagramStudio>` props all unchanged — purely additive overlay. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.6.0` — the **Mermaid bridge release**. A new framework-agnostic subpath, `@inkin/core/mermaid`, converts between Mermaid `flowchart` / `graph` / `stateDiagram` source and inkin's `Diagram` in both directions — `fromMermaid(text)` and `toMermaid(diagram)`. Paste existing Mermaid markdown, edit it visually with the editor chrome, export it back. Best-effort import (out-of-subset features degrade with a `console.warn`, not a failure). Consumers who don't import the bridge pay zero bytes. Schema, renderer, flow animation, and `<DiagramStudio>` props are all unchanged. See the [Mermaid bridge](#mermaid-bridge) section and [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.5.0)
+## What this gives you (today, at 0.6.0)
 
 - A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
 - **In-place editing when you supply `onChange`** — drag to move, drag handles to connect, Delete or Backspace to remove with cascade, double-click any label to edit it inline. Arrow-key nudges and Esc-cancel come for free. Same component, two visible UIs.
 - **Editor chrome auto-mounts in editable mode** (since 0.4.0) — a contextual **Inspector** (label / sublabel / shape / cluster) and a **Palette** toolbar (Add Node / Add Cluster). Opt out per-panel via `inspector="off"` / `palette="off"`. Drag a node into a cluster to reassign it.
-- **Animated data-flow tokens** (new in 0.5.0) — populate `diagram.flows` with ordered edge ids and one `<circle>` per flow loops along the composed path. Per-flow `duration` / `delay` / `color`. No new prop on `<DiagramStudio>`. Honors `prefers-reduced-motion: reduce`. See the [Flow animation](#flow-animation) section.
+- **Animated data-flow tokens** (since 0.5.0) — populate `diagram.flows` with ordered edge ids and one `<circle>` per flow loops along the composed path. Per-flow `duration` / `delay` / `color`. Honors `prefers-reduced-motion: reduce`. See the [Flow animation](#flow-animation) section.
+- **Bidirectional Mermaid bridge** (new in 0.6.0) — `fromMermaid` / `toMermaid` at `@inkin/core/mermaid` parse and emit Mermaid `flowchart` / `stateDiagram` source. Best-effort import; framework-agnostic; zero bytes if unimported. See the [Mermaid bridge](#mermaid-bridge) section.
 - A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
 - Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
@@ -333,6 +334,81 @@ import schema from '@inkin/core/diagram.schema.json' with { type: 'json' }
 // or fetch it from your CDN of choice: unpkg, jsdelivr, etc.
 ```
 
+## Mermaid bridge
+
+New in 0.6.0. Convert between Mermaid `flowchart` / `graph` / `stateDiagram` source and inkin's `Diagram` in both directions — paste existing Mermaid markdown, edit it visually with the editor chrome, export it back. Two pure functions at the framework-agnostic `@inkin/core/mermaid` subpath (no React / xyflow / DOM pulled in; consumers who don't import it pay zero bytes):
+
+```ts
+import { fromMermaid, toMermaid } from '@inkin/core/mermaid'
+import { DiagramStudio } from '@inkin/core'
+
+// --- import: Mermaid text → inkin Diagram ---
+const result = fromMermaid(`flowchart LR
+  browser[Browser] --> api[API Gateway]
+  api -.-> web[Web Service]
+  web --> db[(Database)]`)
+
+if (result.ok) {
+  // result.diagram is a validated inkin Diagram — render it editable
+  return <DiagramStudio value={result.diagram} onChange={setDiagram} />
+}
+// else: result.issues lists field-path-precise syntax errors
+
+// --- export: inkin Diagram → Mermaid text ---
+const text = toMermaid(diagram)              // 'flowchart TB\n…'
+const lr = toMermaid(diagram, { direction: 'LR' })
+```
+
+**`fromMermaid` is a best-effort import.** Well-formed Mermaid that uses a feature outside inkin's supported subset (styling, click handlers, notes, exotic shapes, nested clusters) is dropped or degraded with a one-time `console.warn` rather than failing — only malformed input returns `{ ok: false, issues }`. So a real-world diagram pasted from elsewhere renders something usable, with clear diagnostics about what didn't translate.
+
+### Supported Mermaid syntax
+
+**Flowchart / graph** — `flowchart` and `graph` headers, all directions (`TB` / `BT` / `LR` / `RL` / `TD`):
+
+| Mermaid | inkin | Notes |
+|---|---|---|
+| `A[label]` | `rect` node | faithful |
+| `A((label))` / `A(((label)))` | `terminal` node | faithful (circle / double-circle) |
+| `A(label)` / `A{label}` / `A{{label}}` / `A[(label)]` / `A[[label]]` / `A([label])` / `A>label]` | `rect` / `terminal` (nearest) | degraded + warn — inkin has two shapes, not Mermaid's dozen |
+| `A --> B` | solid edge | faithful |
+| `A -.-> B` | dashed edge | faithful (dotted → dashed) |
+| `A ==> B` / `A ~~~ B` | solid edge | degraded + warn (no thick / invisible style) |
+| `A --- B` (no arrowhead) | solid edge | degraded + warn (inkin always renders arrows) |
+| `A -->\|label\| B`, `A -- label --> B` | edge with label | faithful |
+| `subgraph X[label] … end` | cluster | faithful (nested subgraphs flattened + warn) |
+
+**State diagram** — `stateDiagram` / `stateDiagram-v2`:
+
+| Mermaid | inkin | Notes |
+|---|---|---|
+| `[*]` | `terminal` sentinel node | start (`__start__`) / end (`__end__`) by position |
+| `state X` / `state "Name" as X` | `rect` node | faithful |
+| `X : description` | node label | faithful |
+| `A --> B : event` | edge with label | faithful |
+| `state X { … }` | cluster | compound state → cluster (nested flattened + warn) |
+| `state X <<choice>>` / `<<fork>>` / `<<join>>` | `rect` node | degraded + warn (no pseudostate shape) |
+
+**Not imported** (dropped with a warn): `classDef` / `class` / `style` / `linkStyle` styling, `click` / `href` interactivity, `note left of` / `note right of`, per-subgraph `direction`, the `--` concurrency divider, accessibility annotations. Trapezoid / parallelogram / ellipse shapes degrade to `rect`.
+
+**Round-trip** is semantic, not byte-identical: `fromMermaid(toMermaid(d))` re-parses to a `Diagram` equal to `d` (whitespace, declaration order, and the flowchart-vs-stateDiagram header may differ — inkin's `Diagram` is a flat graph, so `toMermaid` always emits a `flowchart`). Animated `flows` have no Mermaid equivalent and are dropped on export with a warn.
+
+> **Source & attribution**: the inkin parser uses the Mermaid grammar (`flowchart` + `stateDiagram`) as its syntactic spec, and the round-trip test corpus is adapted from Mermaid's own parser fixtures. Mermaid is MIT-licensed (© 2015 Knut Sveidqvist and Mermaid contributors). The parser, converter, and emitter implementations are original to inkin.
+
+### Mermaid + AI
+
+Some models emit Mermaid more reliably than raw JSON. Compose the bridge with `safeParse` for a one-import round-trip:
+
+```ts
+import { fromMermaid } from '@inkin/core/mermaid'
+
+const result = fromMermaid(modelOutput) // model returned Mermaid text
+if (result.ok) {
+  render(result.diagram)
+} else {
+  // feed result.issues back to the model for a single-round correction
+}
+```
+
 ## Validation errors
 
 `parse()` throws `InkinValidationError` with a multi-line message and a structured `issues[]` array:
@@ -392,11 +468,11 @@ The theme attribute lives on the `<DiagramStudio>` wrapper, so two instances on 
 | `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
 | `0.3.0` | Core editing (drag, connect, delete, inline label) | `onChange` prop; `DiagramInput` type; editing layer | ✅ shipped |
 | `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | ✅ shipped |
-| **`0.5.0`** | Flow animation (CSS `offset-path` tokens) — you are here | `<FlowLayer>` overlay, `--inkin-flow-token-radius` theme token | ✅ shipped |
-| `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |
+| `0.5.0` | Flow animation (CSS `offset-path` tokens) | `<FlowLayer>` overlay, `--inkin-flow-token-radius` theme token | ✅ shipped |
+| **`0.6.0`** | Mermaid bidirectional bridge — you are here | `@inkin/core/mermaid` subpath (`fromMermaid` / `toMermaid`) | ✅ shipped |
 | `1.0.0` | Stable — schema and root API frozen, semver guarantee begins | polish only | planned |
 
-Post-stable: undo/redo, copy/paste, PNG export, **flow-editor UI** (Inspector / Palette surface for adding, editing, and removing flows), `layout="elk"`, custom node/edge type registry.
+Post-stable: undo/redo, copy/paste, PNG export, **flow-editor UI** (Inspector / Palette surface for adding, editing, and removing flows), a **built-in Mermaid import/export affordance** on `<DiagramStudio>` (+ a hosted standalone playground for non-coding end users), `layout="elk"`, custom node/edge type registry.
 
 ## Security
 
