@@ -2,14 +2,15 @@
 
 Editable React diagrams from a typed schema. Published as the `@inkin/core` npm package.
 
-> **You are here**: `@inkin/core@0.5.0` — the **flow-animation release**. Declare a `flows?: Flow[]` field on your `Diagram` and one animated `<circle>` per flow traverses its composed edge path via native CSS `offset-path` keyframes. No animation library. Pixel-perfect alignment with xyflow's rendered edges. Honors `prefers-reduced-motion: reduce` with a static-dot fallback. Editor chrome from 0.4.x (Inspector + Palette + cross-cluster drag) is unchanged. Schema, editing primitives, and `<DiagramStudio>` props all unchanged — purely additive overlay. See [the release roadmap](#release-roadmap) below.
+> **You are here**: `@inkin/core@0.6.0` — the **Mermaid bridge release**. A new framework-agnostic subpath, `@inkin/core/mermaid`, converts between Mermaid `flowchart` / `graph` / `stateDiagram` source and inkin's `Diagram` in both directions — `fromMermaid(text)` and `toMermaid(diagram)`. Paste existing Mermaid markdown, edit it visually with the editor chrome, export it back. Best-effort import (out-of-subset features degrade with a `console.warn`, not a failure). Consumers who don't import the bridge pay zero bytes. Schema, renderer, flow animation, and `<DiagramStudio>` props are all unchanged. See the [Mermaid bridge](#mermaid-bridge) section and [the release roadmap](#release-roadmap) below.
 
-## What this gives you (today, at 0.5.0)
+## What this gives you (today, at 0.6.0)
 
 - A drop-in React component, **`<DiagramStudio>`**, that renders a typed `Diagram` with xyflow-powered pan/zoom, optional minimap and controls, custom node/edge/cluster shapes, dark + light themes, and SVG export via a ref handle
 - **In-place editing when you supply `onChange`** — drag to move, drag handles to connect, Delete or Backspace to remove with cascade, double-click any label to edit it inline. Arrow-key nudges and Esc-cancel come for free. Same component, two visible UIs.
 - **Editor chrome auto-mounts in editable mode** (since 0.4.0) — a contextual **Inspector** (label / sublabel / shape / cluster) and a **Palette** toolbar (Add Node / Add Cluster). Opt out per-panel via `inspector="off"` / `palette="off"`. Drag a node into a cluster to reassign it.
-- **Animated data-flow tokens** (new in 0.5.0) — populate `diagram.flows` with ordered edge ids and one `<circle>` per flow loops along the composed path. Per-flow `duration` / `delay` / `color`. No new prop on `<DiagramStudio>`. Honors `prefers-reduced-motion: reduce`. See the [Flow animation](#flow-animation) section.
+- **Animated data-flow tokens** (since 0.5.0) — populate `diagram.flows` with ordered edge ids and one `<circle>` per flow loops along the composed path. Per-flow `duration` / `delay` / `color`. Honors `prefers-reduced-motion: reduce`. See the [Flow animation](#flow-animation) section.
+- **Bidirectional Mermaid bridge** (new in 0.6.0) — `fromMermaid` / `toMermaid` at `@inkin/core/mermaid` parse and emit Mermaid `flowchart` / `stateDiagram` source. Best-effort import; framework-agnostic; zero bytes if unimported. See the [Mermaid bridge](#mermaid-bridge) section.
 - A **zod 4** schema for graph-shaped diagrams (nodes, edges, optional clusters and animated flows) — still at `@inkin/core/schema`, framework-agnostic
 - A `parse()` validator with field-path-precise errors that AI agents and humans can self-correct from
 - Auto-layout powered by `@dagrejs/dagre` (the maintained dagre fork) behind a pluggable `LayoutEngine` interface
@@ -467,11 +468,11 @@ The theme attribute lives on the `<DiagramStudio>` wrapper, so two instances on 
 | `0.2.0` | Read-only `<DiagramStudio>` React renderer | bare `@inkin/core` root entry (React surface), `@inkin/core/styles.css` | ✅ shipped |
 | `0.3.0` | Core editing (drag, connect, delete, inline label) | `onChange` prop; `DiagramInput` type; editing layer | ✅ shipped |
 | `0.4.0` | Editor chrome (InspectorPanel, Palette, ui primitives) | root entry grows | ✅ shipped |
-| **`0.5.0`** | Flow animation (CSS `offset-path` tokens) — you are here | `<FlowLayer>` overlay, `--inkin-flow-token-radius` theme token | ✅ shipped |
-| `0.6.0` | Mermaid bidirectional bridge | `@inkin/core/mermaid` subpath added | planned |
+| `0.5.0` | Flow animation (CSS `offset-path` tokens) | `<FlowLayer>` overlay, `--inkin-flow-token-radius` theme token | ✅ shipped |
+| **`0.6.0`** | Mermaid bidirectional bridge — you are here | `@inkin/core/mermaid` subpath (`fromMermaid` / `toMermaid`) | ✅ shipped |
 | `1.0.0` | Stable — schema and root API frozen, semver guarantee begins | polish only | planned |
 
-Post-stable: undo/redo, copy/paste, PNG export, **flow-editor UI** (Inspector / Palette surface for adding, editing, and removing flows), `layout="elk"`, custom node/edge type registry.
+Post-stable: undo/redo, copy/paste, PNG export, **flow-editor UI** (Inspector / Palette surface for adding, editing, and removing flows), a **built-in Mermaid import/export affordance** on `<DiagramStudio>` (+ a hosted standalone playground for non-coding end users), `layout="elk"`, custom node/edge type registry.
 
 ## Security
 

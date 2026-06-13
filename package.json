@@ -1,7 +1,7 @@
 {
   "name": "@inkin/core",
-  "version": "0.5.0",
-  "description": "Editable React diagrams from a typed schema. v0.5.0 adds animated data-flow tokens on top of 0.4.x's editor chrome: declare a `flows` field on the Diagram and one `<circle>` per flow traverses its composed path using native CSS `offset-path` keyframes — no animation library, honors `prefers-reduced-motion`. Editing primitives, Inspector/Palette chrome, and the framework-agnostic schema kernel at @inkin/core/schema are unchanged.",
+  "version": "0.6.0",
+  "description": "Editable React diagrams from a typed schema. v0.6.0 adds a bidirectional Mermaid bridge at the framework-agnostic @inkin/core/mermaid subpath: `fromMermaid(text)` parses Mermaid flowchart / graph / stateDiagram source into a validated Diagram (best-effort — out-of-subset features degrade with a console.warn, not a failure), and `toMermaid(diagram)` emits it back. Paste Mermaid, edit visually with the editor chrome, export back. Schema, renderer, flow animation, and editor chrome are unchanged; consumers who don't import the bridge pay zero bytes for it.",
   "license": "MIT",
   "author": "kartikeya27",
   "repository": {

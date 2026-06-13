@@ -12,6 +12,114 @@ MAJOR — a `schemaVersion: 2` will only ship with `inkin@2.0.0`.
 
 _Nothing yet._
 
+## [0.6.0] — 2026-06-13
+
+The **Mermaid bridge release**. A new framework-agnostic subpath,
+`@inkin/core/mermaid`, converts between Mermaid `flowchart` / `graph` /
+`stateDiagram[-v2]` source and inkin's `Diagram` in both directions —
+paste existing Mermaid markdown, edit it visually with the 0.4.x editor
+chrome, export it back. The bridge is two pure functions; no React /
+xyflow / DOM / CSS is pulled in, and consumers who don't import it pay
+zero bytes.
+
+Nothing else changes. Schema, renderer, `<DiagramStudio>` props, flow
+animation, and editor chrome are byte-for-byte 0.5.0. Adopters upgrading
+from 0.5.x see no behavioral change unless they import the new subpath.
+
+### Added
+
+- **`@inkin/core/mermaid` subpath** with two pure functions:
+  - **`fromMermaid(text): { ok: true, diagram } | { ok: false, issues }`**
+    — parse Mermaid source into a validated inkin `Diagram`. Detects the
+    diagram kind from the header (`flowchart` / `graph` → flowchart;
+    `stateDiagram[-v2]` → state), runs a hand-rolled recursive-descent
+    parser, converts the AST via the shape/edge mapping tables, and
+    `safeParse`s the result (defense in depth).
+  - **`toMermaid(diagram, options?): string`** — emit a `Diagram` back
+    as canonical Mermaid `flowchart` text. `options.direction` (default
+    `'TB'`) sets the header direction.
+- **Best-effort import.** Well-formed Mermaid that uses a feature outside
+  inkin's documented subset (styling, `click` / `href` interactivity,
+  `classDef`, notes, exotic shapes, nested clusters) is dropped or
+  degraded to the nearest inkin equivalent with one `console.warn` per
+  dropped-feature kind — the import still succeeds. Only malformed input
+  (missing header, unmatched bracket, stray `end`) returns
+  `{ ok: false, issues }` with field-path-precise positions.
+- **Supported subset** (documented in the README's "Mermaid bridge"
+  section and `notes/mermaid-grammar-snapshot/`):
+  - Flowchart: `flowchart` / `graph` headers, all directions; 10 node
+    shapes (`rect` / `circle` / `double-circle` faithful, the rest
+    degrade to `rect` / `terminal` with a warn); 4 edge styles (`solid`
+    faithful, `dotted` → `dashed`, `thick` / `invisible` → `solid` +
+    warn); pipe + mid-edge labels; `subgraph … end` → clusters (nested
+    flattened + warn).
+  - State diagram: `stateDiagram` / `stateDiagram-v2`; `[*]` → reserved
+    terminal sentinel nodes (`__start__` / `__end__` by position);
+    `state X` / `state "Name" as X` / `X : desc`; `A --> B : event` →
+    edge labels; `state X { … }` → clusters; `<<choice>>` / `<<fork>>` /
+    `<<join>>` pseudostates → `rect` + warn.
+- **Examples app gains a live two-way Mermaid editor** (fifth sample):
+  type / paste Mermaid → the diagram redraws (debounced); edit the
+  diagram → the code box rewrites to canonical `toMermaid` output. The
+  "paste Mermaid, edit visually, export back" round-trip, live.
+
+### Changed
+
+- **Parser issue contract** (internal to the bridge): the parsers
+  distinguish `syntax` issues (malformed input → fail) from
+  `unsupported` issues (out-of-subset → best-effort degrade + warn). A
+  successful parse carries its `unsupported` issues as `warnings`; only
+  `syntax` issues produce `{ ok: false }`. This is what makes
+  best-effort import possible.
+- **Build: silenced `@tsdown/css` `SOURCEMAP_BROKEN` warnings.** The
+  `@tsdown/css` 0.22.2 + rolldown 1.1.0 combo emitted ~60 cosmetic
+  CSS-sourcemap warnings per build; a `tsdown.config.ts` `inputOptions`
+  log filter suppresses only that one code from the CSS plugins, leaving
+  every other warning (and JS sourcemaps) intact. No artifact change.
+
+### Verified
+
+- **Round-trip** (vitest, 15 tests): every fixture in the supported-
+  subset corpus (10 flowchart, 4 state, adapted from Mermaid's own
+  parser fixtures with MIT attribution) satisfies
+  `normalize(fromMermaid(src)) == normalize(fromMermaid(toMermaid(
+  fromMermaid(src).diagram)))` — semantic equivalence (decision #7), not
+  byte-identical text. Plus a fixpoint test: `toMermaid(secondParse)`
+  equals `toMermaid(thirdParse)` byte-for-byte, no drift across cycles.
+- **Parser + converter coverage** (vitest): tokenizer (67 tests),
+  flowchart parser (54), state parser (29), `fromMermaid` converter
+  (26), `toMermaid` emitter (14). Total suite 579/579 green.
+- **Bundle** (`pnpm size`): the `/mermaid` subpath is 62.17 kB brotli
+  full (zod-dominated) / 8.41 kB inkin-only code. The main React bundle
+  is **unchanged at 13.03 kB inkin-only brotli** — the bridge adds zero
+  to it. Tree-shake confirmed: `grep -c` for mermaid symbols in
+  `dist/index.js` returns 0.
+- **Type resolution** (`arethetypeswrong`): the `/mermaid` subpath has
+  the same resolution profile as the existing `.` and `/schema` entries.
+- **Zero new runtime dependencies** — the bridge imports only `safeParse`
+  from the already-present schema kernel; zod was already a dependency.
+
+### Attribution
+
+The hand-rolled parser uses Mermaid's `flowchart` + `stateDiagram`
+grammar (JISON) as its syntactic spec, and the round-trip test corpus is
+adapted from Mermaid's own parser fixtures. Source: mermaid-js/mermaid
+HEAD `a047cbf9c8589438b1dc7c1e323ab7493e9ce5c5`, MIT-licensed (© 2015
+Knut Sveidqvist and Mermaid contributors). The parser, converter, and
+emitter implementations are original to inkin.
+
+### Deferred
+
+- **Built-in Mermaid import/export UI** on `<DiagramStudio>` (a paste
+  panel / export button as a component affordance) is not in 0.6.0 — the
+  bridge ships as a library API (`fromMermaid` / `toMermaid`); consumers
+  wire their own UI (the examples sample is the reference). A turnkey
+  affordance, and a hosted standalone playground for non-coding end
+  users, are post-1.0.0 candidates.
+- **Wider shape / style fidelity** (preserving Mermaid's full shape
+  vocabulary) would require schema changes and is not planned for the
+  0.x line.
+
 ## [0.5.0] — 2026-06-08
 
 The **flow-animation release**. The `flows?: Flow[]` field that has been
