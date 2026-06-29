@@ -66,7 +66,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@xyflow/react": "^12.11.0",
+    "@xyflow/react": "^12.11.1",
     "html-to-image": "^1.11.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
