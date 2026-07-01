@@ -54,10 +54,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           # The combined JS/TS pack — handles both .js and .ts sources in
           # one analysis, which is what every modern TS project wants.
@@ -70,7 +70,7 @@ jobs:
           queries: security-and-quality
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           # Categorize the run so multiple language scans (if we add
           # more later) show up as separate entries in the Security tab
