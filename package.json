@@ -66,7 +66,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@xyflow/react": "^12.11.1",
+    "@xyflow/react": "^12.11.2",
     "html-to-image": "^1.11.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
@@ -84,8 +84,8 @@
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.0",
     "jsdom": "^29.1.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "size-limit": "^11.1.0",
     "tsdown": "^0.22.3",
     "typescript": "^5.5.0",
